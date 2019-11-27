@@ -1,0 +1,59 @@
+# creating a CSR to provide to a CA
+(see below for examples of values to use, i.e. the text/output of the *.crt file using `openssl` commands)
+
+# Interactively (follow the prompts to generate the CSR)
+openssl req -new -newkey rsa:2048 -nodes -sha256 -keyout DOMAIN_NAME.key -out DOMAIN_NAME.csr
+
+# With a CSR config file
+openssl req -new -newkey rsa:2048 -nodes -sha256 -keyout DOMAIN_NAME.key -out DOMAIN_NAME.csr -config CSR_CONFIG
+
+# list and find current AWS IAM server certs
+aws iam list-server-certificates
+
+# get and inspect a specific cert
+aws iam get-server-certificate --server-certificate-name example.com
+
+# get just the certificate body
+aws iam get-server-certificate --server-certificate-name example.com | jq -r .ServerCertificate.CertificateBody
+
+# get just the certificate chain
+aws iam get-server-certificate --server-certificate-name example.com | jq -r .ServerCertificate.CertificateChain
+
+# viewing the information of the cert body and chain
+# (there might be an easier way, this is what i know/do)
+#
+# this is the "fun" part, you have to use `openssl` commands
+# there's are a few ways to use the command while feeding it different formats of the
+# cert which is, like I said "fun". So I created a script that you can
+# find here (and for comparision, another that a coworker wrote).
+# Obviously, I like mine better.
+
+# first, you save the cert body & chain data to a file with a `.crt` extension
+# and then run my awesome script, which would output something like this:
+
+$ list_certs www.example.com.crt
+---------------- ( www.example.com.crt ) ---------------------
+  sub: /businessCategory=Private Organization/jurisdictionCountryName=US/jurisdictionStateOrProvinceName=Delaware/serialNumber=5855610/C=US/ST=California/L=Irvine/O=Example Corporation/CN=www.example.com
+dates: Jan  4 00:00:00 2018 GMT -> Dec 26 12:00:00 2019 GMT
+isuer: /C=US/O=DigiCert Inc/OU=www.digicert.com/CN=DigiCert SHA2 Extended Validation Server CA
+---
+  sub: /C=US/O=DigiCert Inc/OU=www.digicert.com/CN=DigiCert SHA2 Extended Validation Server CA
+dates: Oct 22 12:00:00 2013 GMT -> Oct 22 12:00:00 2028 GMT
+isuer: /C=US/O=DigiCert Inc/OU=www.digicert.com/CN=DigiCert High Assurance EV Root CA
+
+# in the output you can see the values that you'll need to create the CSR, e.g. 'subject', 'CN', etc.
+# also, you can see the chain
+
+# if you need to delete the old certificate
+aws iam delete-server-certificate --server-certificate-name example.com
+
+# upload the new cert
+aws iam upload-server-certificate --server-certificate-name example.com --certificate-body file://path/to/PUBLIC_CERT.pem --private-key file://path/to/PRIVTE_KEY.pem --certificate-chain file://path/to/CHAIN_FILE.pem
+
+   or
+
+aws iam upload-server-certificate \
+   --server-certificate-name example.com \
+   --certificate-body file://path/to/PUBLIC_CERT.pem \
+   --private-key file://path/to/PRIVTE_KEY.pem \
+   --certificate-chain file://path/to/CHAIN_FILE.pem

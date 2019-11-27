@@ -1,0 +1,133 @@
+#!/bin/bash
+#
+# Used to find which Chef recipes include other recipes (and so on...)
+# 
+# note: make sure to set your environment up first (i.e. your repo directory root)
+#
+# todo: 
+#   - add code notifying if there are updates or not (i.e. if running on old repo)
+#   - add code to figure out dynamic recipes
+
+# set some GLOBALs
+REPO_DIR=$HOME/repos		# <---- set this to your repo root dir
+ROLE_DIR=$REPO_DIR/roles
+CB_DIR=$REPO_DIR/cookbooks
+RED="\e[31m"            # red color
+YLW="\e[33m"            # yellow color
+NRM="\e[m"              # to make text normal
+BRC="└"
+LTB="├"
+HBR="─"
+VBR="│"
+DSP="    "
+DEPTH_STR="$BRC$HBR$HBR "
+USAGE="usage: `basename $0` COOKBOOK[::RECIPE]"
+LIST_OF_RECIPES=`mktemp /tmp/list_of_recipes.XXX`
+
+look_for_includes() {
+   #tput cuu1
+   #echo "$prev_depth_hdr"
+   depth_hdr=$(/bin/echo "$depth_hdr"|sed 's/'"$DEPTH_STR"'/'"$DSP"'/')
+   depth_hdr="${depth_hdr}$DEPTH_STR"
+   #if [ -z "$prev_depth_hdr" ]; then
+   #   prev_depth_hdr="$LTB"
+   #else
+   #   prev_depth_hdr=$(/bin/echo "$prev_depth_hdr"|sed 's/^'"$LTB"'/'"$VBR"'/')
+   #   prev_depth_hdr="${prev_depth_hdr}$DSP$LTB"
+   #fi
+   while `[ -e "$recipe_file" ] && grep -v '^#' $recipe_file | grep -qF "include_recipe"`; do
+      for cb_rec in `grep -v '^#' $recipe_file | grep -F "include_recipe" | awk '{print $2}'`; do
+         echo $cb_rec | grep -q '^"'
+         if [ $? -eq 0 ]; then
+            cb_rec=$(echo "$cb_rec" | cut -d'"' -f2)
+         fi 
+         echo $cb_rec | grep -q "^'"
+         if [ $? -eq 0 ]; then
+            cb_rec=$(echo "$cb_rec" | cut -d"'" -f2)
+         fi 
+         echo $cb_rec | grep -qF "::"
+         if [ $? -eq 0 ]; then
+            cookbook="`echo $cb_rec | cut -d: -f1`"
+            recipe="`echo $cb_rec | cut -d: -f3`.rb"
+         else
+            cookbook=$cb_rec
+            recipe="default.rb"
+         fi
+         recipe_dir="$CB_DIR/$cookbook/recipes"
+         echo $recipe | grep -qF "install_method"
+         if [ $? -eq 0 ]; then
+            recipe="install_package.rb"
+         fi
+         grep -q "$cookbook::$recipe" $LIST_OF_RECIPES
+         if [ $? -eq 0 ]; then
+            /bin/echo -ne "$depth_hdr${RED}$cookbook::$recipe${NRM} (repeated)"
+         else
+            echo "$cookbook::$recipe" >> $LIST_OF_RECIPES
+            /bin/echo -ne "$depth_hdr$cookbook::$recipe"
+         fi
+         recipe_file="$recipe_dir/$recipe"
+         echo "$recipe_file" | grep -q '[[\{]'
+         if [ $? -ne 0 ]; then
+            if [ -d $CB_DIR/$cookbook ]; then
+               if [ -e $recipe_file ]; then
+                  echo
+                  grep -v '^#' $recipe_file | grep -qF "include_recipe"
+                  if [ $? -eq 0 ]; then
+                     look_for_includes
+                  fi
+               else
+                  #echo " - recipe '$recipe_file' does not exist"
+                  /bin/echo -e " - ${YLW}recipe does not exist${NRM}"
+               fi
+            else
+               /bin/echo -e " - ${YLW}directory '$CB_DIR/$cookbook' does not exist${NRM}"
+            fi
+         else
+            echo
+         fi
+      done
+   done
+   depth_hdr=$(/bin/echo "$depth_hdr"|sed 's/'"$DSP"'//')
+   #prev_depth_hdr=$(/bin/echo "$prev_depth_hdr"|sed 's/'"$LTB"'$/'"$VBR"'/;s/'"$DSP$VBR"'$//')
+}
+
+# make sure we're in the correct directory
+cd $REPO_DIR
+
+if [ -n "$1" ]; then
+   echo $1 | grep -qF "::"
+   if [ $? -eq 0 ]; then
+      cookbook="`echo $1 | cut -d: -f1`"
+      recipe="`echo $1 | cut -d: -f3`.rb"
+   else
+      cookbook=$1
+      recipe="default.rb"
+   fi
+   recipe_file="$CB_DIR/$cookbook/recipes/$recipe"
+   depth_hdr=""
+   #prev_depth_hdr=""
+
+   /bin/echo -ne "$cookbook::$recipe"
+
+   if [ -d $CB_DIR/$cookbook ]; then
+      if [ -e $recipe_file ]; then
+         echo
+         grep -v '^#' $recipe_file | grep -qF "include_recipe"
+         if [ $? -eq 0 ]; then
+            look_for_includes
+         fi
+      else
+         #echo " - recipe '$recipe_file' does not exist"
+         /bin/echo -e " - ${YLW}recipe '$recipe_file' does not exist${NRM}"
+      fi
+   else
+      /bin/echo -e " - ${YLW}directory '$CB_DIR/$cookbook' does not exist${NRM}"
+   fi
+else
+   echo "$USAGE"
+fi
+
+# get rid of temp file
+rm -f $LIST_OF_RECIPES
+# cd back to wherever I was
+cd - > /dev/null

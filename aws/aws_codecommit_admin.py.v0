@@ -1,0 +1,665 @@
+#!/bin/env python
+# 
+# THIS SCRIPT IS NOT READY!  # THIS SCRIPT IS NOT READY!  # THIS SCRIPT IS NOT READY!
+#
+# Description:
+#     Quick script to create CodeCommit repo and grant/revoke users access to it
+#
+#     Create an AWS CodeCommit repo if it doesn't exist, and
+#     Add/Remove user access to the AWS CodeCommit repo
+#
+# Usage:
+#     Show usage with: codecommit_admin -h
+#
+# Requirements:
+#     - Must have AWS credentials to get/create CodeCommit and IAM resources
+#     - AWS environment variables must be set (profile or keys and region)
+#
+# TODO:
+#     - in create group fuction - add inline policy when creating the group
+#       if the group exists, check for an inline policy or attached policy
+#       and if not attach an inline
+# aws iam get-group-policy --group-name $rn --policy-name $rn
+#     - enable the '--dry-run' option
+#     - add function to upload public ssh key
+#     - minimize/optimize by creating/using more functions
+#
+# Steps:
+#     - create CodeCommit repo (e.g. repo_ocar_dev) if it doesn't already exist
+#     - create IAM group (e.g. CodeCommit_repo_ocar_dev) if it doesn't already exist
+#     - create IAM policy (e.g. CodeCommit_repo_ocar_dev) if it doesn't already exist
+#     - attach policy to group unless it's already attached or inline
+#     - create user if it doesn't already exist
+#     - create AWS keys for user if they don't have them
+#     - add user to group if they are not already a member
+#     - upload public ssh key (if applicable)
+#     - email user(s)
+
+#POLICY EXAMPLE:
+#---------------
+#Name: CodeCommitAccessToRepo-repo_ocar_dev
+#{
+#	"Version": "2012-10-17",
+#	"Statement": [
+#		{
+#			"Sid": "CodeCommitAccessToRepo",
+#			"Effect": "Allow",
+#			"NotAction": "codecommit:DeleteRepository",
+#			"Resource": "arn:aws:codecommit:us-east-1:1234567890:repo_ocar_dev"
+#		}
+#	]
+#}
+
+import argparse
+import base64
+import boto3
+import botocore.exceptions
+import copy
+import difflib
+import os
+import sys
+#import json
+#import smtplib
+#import subprocess
+#import yaml
+
+# set some global variables
+DEFAULT_REGION = 'us-east-1'    # to create AWS CodeCommit repo and send email using SES
+FROM_EMAIL = 'nim-ops@telecomsys.com'
+IAM_POLICY_TEMPLATE = """\
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "CodeCommitAccessToRepo",
+			"Effect": "Allow",
+			"NotAction": "codecommit:DeleteRepository",
+			"Resource": "arn:aws:codecommit:{region}:{aws_acct}:{repo}"
+		}
+	]
+}
+"""
+EMAIL_HEADER_TEMPLATE = """\
+From: {from}
+To: {to}
+Subject: {subject}
+Subject: AWS CodeCommit access added to repo: {repo}
+"""
+GRANTED_EMAIL_TEMPLATE = """\
+Hello,
+
+You have been granted access to the AWS CodeCommit repository: {repo}
+
+{accesskeys}
+{sshkeyid}
+Please use the folling links for instructions on accessing CodeCommit:
+
+	http://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-https-windows.html
+	http://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-https-unixes.html
+
+You can access CodeCommit via SSH by providing a public SSH key and following these instructions:
+
+	http://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-ssh-unixes.html
+
+Skip the parts of the instructions that require you to log into the AWS console because your IAM account has already been created.
+
+If you have any questions or concerns, please let us know.
+
+Thank you,
+
+NIM Ops Team
+"""
+REVOKED_EMAIL_TEMPLATE = """\
+From: {from}
+To: {to}
+Subject: AWS CodeCommit access revoked for repo: {repo}
+
+Hello,
+
+Your access has been revoked to the AWS CodeCommit repository: {repo}
+
+If this has been in error or you have any questions or concerns, please let us know.
+
+Thank you,
+
+NIM Ops Team
+"""
+ACCESS_KEYS_TEMPLATE = """\
+Here are your access keys:
+
+	Access Key Id:    {aki}
+        Secret Access Key:    {sak}
+"""
+
+SSH_KEY_TEMPLATE = """
+
+To configure SSH access here is your SSH Key Id: {ski}
+
+"""
+
+def create_boto_service_client(service, region):
+# create AWS service connection - return client
+    try:
+        try:
+            client = boto3.client(service_name=service)
+            debug_print("created boto service client ({0}) from config/env".format(service))
+        except botocore.exceptions.ProfileNotFound as e:
+            debug_print("could not create boto service client ({0})".format(service))
+            sys.exit("error (AWS profile): {0}".format(e))
+        except botocore.exceptions.NoRegionError as e:
+            debug_print("could not create boto service client ({0}) using AWS config file and/or env settings".format(service))
+            try:
+                client = boto3.client(service_name=service, region_name=region)
+                debug_print("created boto service client ({0}) using region ({1}) defined".format(service, region))
+            except NameError as e:
+                debug_print("could not create boto service client ({0}) using region ({1}) defined".format(service, region))
+                sys.exit("error (region): {0}".format(e))
+    except Exception as e:
+        debug_print("could not create boto service client ({0})".format(service))
+        sys.exit("error: {0}".format(e))
+    return client
+
+def create_codecommit_repo(client, repo_name):
+# create the CodeCommit repo if it doesn't already exist and return the ARN
+    verbose_print("Attempting to create CodeCommit repo ({0})...".format(repo_name))
+    try:
+        repo = client.get_repository(repositoryName=repo_name)
+        print("CodeCommit repo ({0}) already exists, not creating".format(repo_name))
+    except botocore.exceptions.NoCredentialsError as e:
+        debug_print("can't get repo ({0}) info - exception: {1}".format(repo_name, e))
+        sys.exit("can't get repo ({0}) info: AWS credentials NOT set".format(repo_name))
+    except botocore.exceptions.ClientError as e:
+        debug_print("can't get repo ({0}) info - exception: ClientError".format(repo_name))
+        e_code = e.response['Error']['Code']
+        if e_code == 'RepositoryDoesNotExistException':
+            verbose_print("CodeCommit repo ({0}) does not exist, creating".format(repo_name))
+            try:
+                repo = client.create_repository(repositoryName=repo_name)
+                print("created CodeCommit repo ({0})".format(repo_name))
+            except botocore.exceptions.NoCredentialsError as e:
+                debug_print("can't create repo ({0}) - exception: {1}".format(repo_name, e))
+                sys.exit("can't create repo ({0}): AWS credentials NOT set".format(repo_name))
+            except botocore.exceptions.ClientError as e:
+                debug_print("can't create repo ({0}) - exception: ClientError".format(repo_name))
+                e_code = e.response['Error']['Code']
+                if e_code == 'RepositoryNameExistsException':
+                    print("can't create repo ({0}) - already exists".format(repo_name))
+                elif e_code == 'AccessDeniedException':
+                    sys.exit("can't create repo ({0}) - access denied".format(repo_name))
+                else:
+                    debug_print("error: {0}".format(e))
+                    sys.exit("can't create repo ({0}): error code ({1})".format(repo_name, e_code))
+            except Exception as e:
+                debug_print("exception(Catch All): can't create repo ({0})".format(repo_name))
+                debug_print("error: class ({0}) name ({1})".format(e.__class__, e.__class__.__name__))
+                sys.exit("error: {0}".format(e))
+        elif e_code == 'AccessDeniedException':
+            sys.exit("can't get repo ({0}) info - access denied".format(repo_name))
+        else:
+            debug_print("error: {0}".format(e))
+            sys.exit("can't get repo ({0}) info: error code ({1})".format(repo_name, e_code))
+    except Exception as e:
+        debug_print("exception(Catch All): can't get repo ({0}) info".format(repo_name))
+        debug_print("error: class ({0}) name ({1})".format(e.__class__, e.__class__.__name__))
+        sys.exit("error: {0}".format(e))
+    repo_arn = repo['repositoryMetadata']['Arn'] 
+    debug_print("CodeCommit repo ({0}) arn ({1})".format(repo_name, repo_arn))
+    return repo_arn
+
+def create_iam_group(client, repo_name):
+# create the IAM group if it doesn't already exist and reutrn the ARN
+    group_name = 'CodeCommit_' + repo_name
+    verbose_print("Attempting to create IAM group ({0})...".format(group_name))
+    try:
+        group = client.get_group(GroupName=group_name)
+        print("IAM group ({0}) already exists, not creating".format(group_name))
+    except botocore.exceptions.NoCredentialsError as e:
+        debug_print("can't get group ({0}) info - exception: {1}".format(group_name, e))
+        sys.exit("can't get group ({0}) info: AWS credentials NOT set".format(group_name))
+    except botocore.exceptions.ClientError as e:
+        debug_print("can't get group ({0}) info - exception: ClientError".format(group_name))
+        e_code = e.response['Error']['Code']
+        if e_code == 'NoSuchEntity':
+            verbose_print("IAM group ({0}) does not exist, creating".format(group_name))
+            try:
+                group = client.create_group(GroupName=group_name)
+                print("created IAM group ({0})".format(group_name))
+            except botocore.exceptions.NoCredentialsError as e:
+                debug_print("can't create group ({0}) - exception: {1}".format(group_name, e))
+                sys.exit("can't create group ({0}): AWS credentials NOT set".format(group_name))
+            except botocore.exceptions.ClientError as e:
+                debug_print("can't create group ({0}) - exception: ClientError".format(group_name))
+                e_code = e.response['Error']['Code']
+                if e_code == 'GroupExistsException':
+                    print("can't create group ({0}) - already exists".format(group_name))
+                elif e_code == 'AccessDenied':
+                    sys.exit("can't create group ({0}) - access denied".format(group_name))
+                else:
+                    debug_print("error: {0}".format(e))
+                    sys.exit("can't create group ({0}): error code ({1})".format(group_name, e_code))
+            except Exception as e:
+                debug_print("exception(Catch All): can't create group ({0})".format(group_name))
+                debug_print("error: class ({0}) name ({1})".format(e.__class__, e.__class__.__name__))
+                sys.exit("error: {0}".format(e))
+        elif e_code == 'AccessDenied':
+            sys.exit("can't get group ({0}) info - access denied".format(group_name))
+        else:
+            debug_print("error: {0}".format(e))
+            sys.exit("can't get group ({0}) info: error code ({1})".format(group_name, e_code))
+    except Exception as e:
+        debug_print("exception(Catch All): can't get group ({0}) info".format(group_name))
+        debug_print("error: class ({0}) name ({1})".format(e.__class__, e.__class__.__name__))
+        sys.exit("error: {0}".format(e))
+    group_arn = group['Group']['Arn']
+    debug_print("IAM group ({0}) arn ({1})".format(group_name, group_arn))
+    return group_arn
+    
+def create_iam_policy(client, repo_name, policy_doc):
+# create IAM policy if it doesn't already exist - return ARN
+    def _get_policy_arn(_policy_name, _marker=''):
+    # default # of items is 100 - can change with 'MaxItems'
+        try:
+            if _marker:
+                _policy_list = client.list_polices(Marker=_marker)
+            else:
+                _policy_list = client.list_polices()
+            for _policy in _policy_list['Policies']:
+                if _policy['PolicyName'] == _policy_name:
+                    return _policy['Arn']
+            try:
+                _marker = _policy_list['Marker']
+                return _get_policy_arn(_policy_name, _marker)
+            except KeyError as e:
+                print("couldn't get ARN for existing IAM policy ({0})".format(_policy_name))
+                debug_print("couldn't get ARN for existing IAM policy ({0}) - exception: {1}".format(policy_name, e))
+                sys.exit("error: {0}".format(e))
+            except Exception as e:
+                debug_print("exception(Catch All): checking for policy list marker")
+                debug_print("error: class ({0}) name ({1})".format(e.__class__, e.__class__.__name__))
+                sys.exit("error: {0}".format(e))
+        except botocore.exceptions.NoCredentialsError as e:
+            debug_print("can't list IAM policies ({0}) - exception: {1}".format(policy_name, e))
+            sys.exit("can't list IAM policies ({0}): AWS credentials NOT set".format(policy_name))
+        except botocore.exceptions.ClientError as e:
+            debug_print("can't list IAM policies - exception: ClientError".format(group_name))
+            e_code = e.response['Error']['Code']
+            if e_code == 'AccessDenied':
+                sys.exit("can't list IAM policies - access denied")
+            else:
+                debug_print("error: {0}".format(e))
+                sys.exit("can't list IAM policies: error code ({1})".format(group_name, e_code))
+        except Exception as e:
+            debug_print("exception(Catch All): can't list IAM policies)")
+            debug_print("error: class ({0}) name ({1})".format(e.__class__, e.__class__.__name__))
+            sys.exit("error: {0}".format(e))
+        return ''
+
+    policy_name = 'CodeCommit_' + repo_name
+    # this doesn't work (KeyError: '\n        "Version"')
+    #policy_doc = IAM_POLICY_TEMPLATE.format(region=region, aws_acct=aws_acct_number, repo=repo_name)
+    policy_desc = "All (but delete repo) access to CodeCommit repo ({0})".format(repo_name)
+    verbose_print("Attempting to create IAM policy ({0})...".format(policy_name))
+    try:
+        policy = client.create_policy(PolicyName=policy_name, PolicyDocument=policy_doc, Description=policy_desc)
+        print("created IAM policy ({0})".format(policy_name))
+        policy_arn = policy['Policy']['Arn']
+    except botocore.exceptions.NoCredentialsError as e:
+        debug_print("can't create IAM policy ({0}) - exception: {1}".format(policy_name, e))
+        sys.exit("can't create IAM policy ({0}): AWS credentials NOT set".format(policy_name))
+    except botocore.exceptions.ClientError as e:
+        debug_print("can't create IAM policy ({0}) - exception: ClientError".format(policy_name))
+        e_code = e.response['Error']['Code']
+        if e_code == 'EntityAlreadyExists':
+            policy_arn = _get_policy_arn(policy_name)
+        elif e_code == 'AccessDenied':
+            sys.exit("can't create IAM policy ({0}) - access denied".format(policy_name))
+        else:
+            debug_print("error: {0}".format(e))
+            sys.exit("can't create IAM policy ({0}): error code ({1})".format(policy_name, e_code))
+    except Exception as e:
+        debug_print("exception(Catch All): can't create IAM policy ({0})".format(policy_name))
+        debug_print("error: class ({0}) name ({1})".format(e.__class__, e.__class__.__name__))
+        sys.exit("error: {0}".format(e))
+    debug_print("IAM policy ({0}) arn ({1})".format(policy_name, policy_arn))
+    return policy_arn
+
+def main():
+    global verbose_print
+    global debug_print
+    # parse command line arguments
+    description = 'Create a CodeCommit repo and grant/revoke access to it'
+    parser = argparse.ArgumentParser(description=description)
+    optional = parser._action_groups.pop()
+    required = parser.add_argument_group('required arguments')
+    #mut_exc_grp = parser.add_mutually_exclusive_group(required=True)
+    #mut_exc_grp.add_argument(
+    #    '--grant',
+    #    action='store_true',
+    #    help='grant (add) user access to CodeCommit repo')
+    #mut_exc_grp.add_argument(
+    #    '-r', '--revoke',
+    #    action='store_true',
+    #    help='revoke (remove) user access to CodeCommit repo')
+    required.add_argument(
+        '-rn', '--repo-name',
+        required=True,
+        help='name of CodeCommit repo to add user too')
+    required.add_argument(
+        '-a', '--add',
+        action='store_true',
+        help='grant user access to CodeCommit repo')
+    required.add_argument(
+        '-r', '--remove',
+        action='store_true',
+        help='revoke user access to CodeCommit repo')
+    #required.add_argument(
+    #    'command',
+    #    #required=True,
+    #    choices=set(('grant','revoke')),
+    #    help='grant (add) or revoke (remove) user access to CodeCommit repo')
+    required.add_argument(
+        '-u', '--user',
+        help='AWS console user ID of user being added/removed to/from repo access')
+    required.add_argument(
+        '-e', '--email',
+        help='E-mail address of user being added/removed to/from repo access')
+    required.add_argument(
+        '-ul', '--user-list',
+        help='file name containing a list of users to add/remove (format: JSON)')
+    optional.add_argument(
+        '-s', '--ssh-key',
+        help='file name containing a public SSH key the user to upload to AWS')
+    optional.add_argument(
+        '--region',
+        default=DEFAULT_REGION,
+        help='AWS region of the CodeCommit repo (uses AWS env settings or default: {0})'.format(DEFAULT_REGION))
+    optional.add_argument(
+        '-i', '--interactive',
+        action='store_true',
+        help='run interactively: show user changes and ask for verification to continue (useful when revoking access)')
+    optional.add_argument(
+        '-v', '--verbose',
+        action='store_true',
+        help='turn on verbose output')
+    optional.add_argument(
+        '-d', '--debug',
+        action='store_true',
+        help='turn on debug output')
+    optional.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='do NOT execute the commands - perform a dry-run')
+    parser._action_groups.append(optional)
+    args = parser.parse_args()
+
+    # set up some vars
+    debug = args.debug
+    if debug:
+        def debug_print(*args):
+            print "debug: ",
+            for arg in args:
+                print arg,
+            print
+    else:
+        debug_print = lambda *a: None	# do nothing function
+    verbose = args.verbose
+    if verbose:
+        def verbose_print(*args):
+            print "info: ",
+            for arg in args:
+                print arg,
+            print
+    else:
+        verbose_print = lambda *a: None	# do nothing function
+
+    verbose_print('verbosity turned on')
+    debug_print('debug turned on')
+    dry_run = args.dry_run
+    if dry_run:
+        verbose_print('performing dry-run')
+        sys.exit("sorry: option '--dry-run' is not supported yet")
+    repo_name = args.repo_name
+    user = args.user
+    email = args.email
+    user_list = args.user_list
+    add = args.add
+    remove = args.remove
+    region = args.region
+    interactive = args.interactive
+    if add and remove:
+        parser.error("options '-a/--add' and '-r/--remove' are mutually exclusive")
+    if not add and not remove:
+        parser.error("options '-a/--add' or '-r/--remove' required")
+    if user and not email:
+        parser.error("option '-e/--email' is required with '-u/--user'")
+    if not user and email:
+        parser.error("option '-u/--user' is required with '-e/--email'")
+    if user and email and user_list:
+        parser.error("specify either ('-u/--user' and '-e/--email') or '-ul/--user-list' but not both")
+    if not user and not email and not user_list:
+        parser.error("options ('-u/--user' and '-e/--email') or '-ul/--user-list' required")
+    if user_list:
+        verbose_print('using user list file')
+        sys.exit("sorry: option '-ul/--user-list' is not supported yet")
+
+    # connect to the CodeCommit service
+    codecommit_client = create_boto_service_client('codecommit', region)
+    # connect to the IAM service
+    iam_client = create_boto_service_client('iam', region)
+    # connect to the SES service
+    ses_client = create_boto_service_client('ses', region)
+
+    if add:
+        # create CodeCommit repo if it doesn't already exist
+        repo_arn = create_codecommit_repo(codecommit_client, repo_name)
+        aws_acct_number=repo_arn.split(':')[4]
+        # create IAM group (e.g. CodeCommit_repo_ocar_dev) if it doesn't already exist
+        group_arn = create_iam_group(iam_client, repo_name)
+        # create IAM policy (e.g. CodeCommit_repo_ocar_dev) if it doesn't already exist
+        policy_doc = IAM_POLICY_TEMPLATE.replace('{region}:{aws_acct}:{repo}', "{0}:{1}:{2}".format(region,aws_acct_number,repo_name))
+        policy_arn = create_iam_policy(iam_client, repo_name, policy_doc)
+        sys.exit("all done - bailing!")    # for bailing prematurely  - remove when done testing
+        # attach policy to group unless it's already attached or inline
+        attach_iam_policy_to_group(iam_client, policy_arn, group_arn)
+        # create user if it doesn't already exist
+        user_arn = create_iam_user(iam_client, user)
+        # create AWS keys for user if they don't have them
+        # add user to group if they are not already a member
+        # upload public ssh key (if applicable)
+        # email user(s)
+    elif remove:
+        sys.exit("sorry: 'remove' is not implemented yet")
+        # remove user from group if they are a member
+        group_arn = get_iam_group(iam_client, repo_name)
+        # email user(s)
+    else:
+        sys.exit("error: don't know what to do (i.e. 'add' or 'remove'")
+
+    debug_print("AWS acct number ({0})".format(aws_acct_number))
+    debug_print("repo arn ({0})".format(repo_arn))
+    debug_print("group arn ({0})".format(group_arn))
+    sys.exit("all done - bailing!")    # for bailing prematurely  - remove when done testing
+
+    # if running interactively - ask to continue after displaying changes
+    if interactive:
+        user_choice = raw_input('Do you wish to continue (y/n)? ').upper()
+        while user_choice != 'Y' and user_choice != 'N':
+            user_choice = raw_input('Please enter (y/Y) or (n/N): ').upper()
+        if user_choice == 'N':
+            sys.exit('OK - NOT continuing.\nOriginal user data script saved to: {0}'.format(orig_uds_file_name))
+        else:
+            verbose_print('\tContinuing with update(s)')
+
+if __name__ == '__main__':
+    main()
+
+#######################################################
+
+class repo_user(object):
+    '''This class is meant to construct a simplified object from either
+    get_user or create_user response JSON.'''
+
+    def __init__(self, from_json=None):
+        if from_json and from_json.has_key('get_user_response'):
+            self.name = from_json.get_user_response.get_user_result.user.user_name
+            self.arn = from_json.get_user_response.get_user_result.user.arn
+            self.created = from_json.get_user_response.get_user_result.user.create_date
+        elif from_json and from_json.has_key('create_user_response'):
+            self.name = from_json.create_user_response.create_user_result.user.user_name
+            self.arn = from_json.create_user_response.create_user_result.user.arn
+            self.created = from_json.create_user_response.create_user_result.user.create_date
+        else:
+            self.name = None
+            self.arn = None
+            self.created = None
+
+def _iam_connect(region):
+    return iam.connect_to_region(region)
+
+def clean_repo(group_name, iam_conn):
+    iam_conn.delete_group(group_name)
+    # the policy is named the same as the group
+    iam_conn.delete_group_policy(group_name, group_name)
+    subprocess.call(["aws", "codecommit", "delete-repository",
+            "--repository-name", group_name, "--region", "us-east-1"])
+
+def create_repo(rname, rdesc, iam_conn):
+    subprocess.call(["aws", "codecommit", "create-repository",
+            "--repository-name", rname, "--repository-description", rdesc,
+            "--region", "us-east-1"])
+    group_name = "CodeCommit_{repo}".format(repo=rname)
+    try:
+        iam_conn.create_group(group_name)
+        policy_doc = _policy_template.replace('XREPOX', rname)
+        policy = iam_conn.create_policy(group_name, policy_doc)
+        policy_arn = policy.create_policy_response.create_policy_result.policy.arn
+        iam_conn.attach_group_policy(policy_arn, group_name)
+    except:
+        # ignore for now, in almost all cases we want to add users
+        pass
+
+def _get_repo_user(username, iam_conn):
+    try:
+        user_json = iam_conn.get_user(username)
+        return repo_user(user_json)
+    except:
+        return None
+
+def _upload_ssh_key(user, ssh_key):
+    try:
+        ssh_json = subprocess.check_output(["aws", "iam", "upload-ssh-public-key",
+                "--user-name", user.name, "--output", "json",
+                "--ssh-public-key-body", ssh_key])
+        ssh_data = json.loads(ssh_json)
+        ssh_key_id = ssh_data['SSHPublicKey']['SSHPublicKeyId']
+    except:
+        return None
+    return ssh_key_id
+
+def _has_api_key(user_name, iam_conn):
+    api_keys_reply = iam_conn.get_all_access_keys(user_name)
+    api_keys = api_keys_reply.list_access_keys_response.list_access_keys_result.access_key_metadata
+    for k in api_keys:
+        if k.status == u'Active':
+            return True
+    return False
+
+def _create_access_key(user_name, iam_conn):
+    api_key_reply = iam_conn.create_access_key(user_name)
+    api_key = api_key_reply.create_access_key_response.create_access_key_result.access_key
+    return api_key.access_key_id, api_key.secret_access_key
+
+def _send_invite_email(full_name, email, repo_name, api_key, api_secret, key_id, no_email):
+    from_email = 'tholcomb@telecomsys.com'
+    recipient = email
+
+    api_keys = ""
+    if api_key and api_secret:
+        api_keys = _email_api_keys.format(id=api_key, secret=api_secret)
+
+    ssh_key = ""
+    if key_id:
+        ssh_key = _email_ssh_key.format(key=key_id)
+
+    body = _email_body.format(
+            sender="{n} <{email}>".format(n='Tim Holcomb', email=from_email),
+            recip="{n} <{email}>".format(n=full_name, email=email),
+            repo=repo_name, api_key=api_keys, ssh_key=ssh_key)
+
+    with open('{fn}_{r}.txt'.format(fn=full_name.replace(' ', '_'), r=repo_name), 'w') as fout:
+        fout.write(body)
+
+    if not no_email:
+        mailer = smtplib.SMTP('localhost')
+        send_log = mailer.sendmail(from_email, recipient, body)
+
+def create_repo_user(fullname, rname, iam_conn, ssh_key=None, uname=None, email=None, no_email=False, third_party=False):
+    gname = "CodeCommit_{rname}".format(rname=rname)
+    names = fullname.split(' ')
+    if not email:
+        email = "{f}.{l}@comtechtel.com".format(f=names[0], l=names[1])
+    if not uname:
+        uname = "{f}{l}".format(f=names[0][0].lower(), l=names[1].lower())
+    user_exists = False
+    user = _get_repo_user(uname, iam_conn) or \
+            _get_repo_user("tcs_{n}".format(n=uname), iam_conn)
+    if not user:
+        user = repo_user(iam_conn.create_user(uname))
+    else:
+        user_exists = True
+
+    iam_conn.add_user_to_group(gname, user.name)
+    ssh_key_id = None
+    if ssh_key:
+        ssh_key_id = _upload_ssh_key(user, ssh_key)
+        if third_party:
+            print "SSHKeyId: {id}".format(id=ssh_key_id)
+            return
+
+    access_key_id = None
+    secret_access_key = None
+    if not _has_api_key(user.name, iam_conn):
+        access_key_id, secret_access_key = _create_access_key(user.name, iam_conn)
+
+    _send_invite_email(fullname, email, rname,
+            access_key_id, secret_access_key, ssh_key_id, no_email)
+
+#if __name__ == '__main__':
+#
+#    description = "Create CodeCommit repos and the users that access them"
+#    parser = argparse.ArgumentParser(description=description)
+#    parser.add_argument(
+#            "-c", "--config",
+#            required=True,
+#            help="name of the config file describing repos")
+#    parser.add_argument(
+#            "-r", "--region",
+#            help="name of the AWS region to use",
+#            default="us-east-1")
+#    parser.add_argument(
+#            "-n", "--no-email",
+#            help="do not send email, just output the body to txt file",
+#            action="store_true")
+#    args = parser.parse_args()
+#
+#    with open(args.config, 'r') as yaml_file:
+#        yaml_config = yaml_file.read()
+#        conf = yaml.load(yaml_config)
+#
+#    ic = _iam_connect(args.region)
+#    for repo in conf['repos']:
+#        create_repo(repo['name'], repo['description'], ic)
+#        for usr in repo['users']:
+#            if usr.has_key('ssh_key'):
+#                key = usr['ssh_key']
+#            else:
+#                key = None
+#            if usr.has_key('uname'):
+#                uname = usr['uname']
+#            else:
+#                uname = None
+#            if usr.has_key('email'):
+#                email = usr['email']
+#            else:
+#                email = None
+#            create_repo_user(usr['name'], repo['name'], ic, ssh_key=key, uname=uname, email=email, no_email=args.no_email)

@@ -1,0 +1,107 @@
+#!/bin/bash
+#
+# Used to find Chef shit out
+# 
+# note: make sure to set your environment up first
+#
+# todo: 
+#   - add code notifying if there are updates or not (i.e. if running on old repo)
+#   - add code to figure out dynamic recipes
+
+# set some GLOBALs
+REPO_DIR=/opt/repo
+ROLE_DIR=$REPO_DIR/roles
+CB_DIR=$REPO_DIR/cookbooks
+BRC="└"
+LTB="├"
+HBR="─"
+VBR="│"
+DSP="    "
+DEPTH_STR="$BRC$HBR$HBR "
+
+look_for_includes() {
+#   prev_hdrs=$(/bin/echo "$depth_hdr"|sed 's/'"$BRC"'/'"$LTB"'/')
+#   if [ $depth -gt 0 ]; then
+#      prev_hdrs=$(/bin/echo "$prev_hdrs"|sed 's/'"$DSP"'//')
+#   fi
+   depth_hdr=$(/bin/echo "$depth_hdr"|sed 's/'"$DEPTH_STR"'/'"$DSP"'/')
+   depth_hdr="${depth_hdr}$DEPTH_STR"
+#   #prev_hdrs="${prev_hdrs}$DEPTH_STR"
+   #while `grep -v '^#' $recipe_file | grep -qF "include_recipe"`; do
+   while `[ -e $recipe_file ] && grep -v '^#' $recipe_file | grep -qF "include_recipe"`; do
+      #echo "recipe_file: $recipe_file"
+      #for cb_rec in `grep -F "include_recipe" $recipe_file | cut -d'"' -f2`; do
+      for cb_rec in `grep -v '^#' $recipe_file | grep -F "include_recipe" | awk '{print $2}'`; do
+         #echo "cb_rec: $cb_rec"
+         echo $cb_rec | grep -q '^"'
+         if [ $? -eq 0 ]; then
+            cb_rec=$(echo "$cb_rec" | cut -d'"' -f2)
+         fi 
+         echo $cb_rec | grep -q "^'"
+         if [ $? -eq 0 ]; then
+            cb_rec=$(echo "$cb_rec" | cut -d"'" -f2)
+         fi 
+         echo $cb_rec | grep -qF "::"
+         if [ $? -eq 0 ]; then
+            cookbook="`echo $cb_rec | cut -d: -f1`"
+            recipe="`echo $cb_rec | cut -d: -f3`.rb"
+         else
+            cookbook=$cb_rec
+            recipe="default.rb"
+         fi
+         recipe_dir="$CB_DIR/$cookbook/recipes"
+         echo $recipe | grep -qF "install_method"
+         if [ $? -eq 0 ]; then
+            recipe="install_package.rb"
+         fi
+#         if [ $depth -gt 0 ]; then
+#            prev_hdrs=$(/bin/echo "$depth_hdr"|sed 's/'"$BRC"'/'"$LTB"'/')
+#            prev_hdrs=$(/bin/echo "$prev_hdrs"|sed 's/'"$DSP"'//')
+#            prev_hdrs=$(/bin/echo "$prev_hdrs"|sed 's/^ /'"$VBR"'/')
+#            prev_hdrs=$(/bin/echo "$prev_hdrs"|sed 's/'"$LTB$HBR$HBR"'  /'"$VBR"'     /')
+#            tput cuu1
+#            echo "$prev_hdrs"
+#         fi
+         /bin/echo -e "$depth_hdr$cookbook::$recipe"
+         recipe_file="$recipe_dir/$recipe"
+         echo "$recipe_file" | grep -q '[[\{]'
+         if [ $? -ne 0 ]; then
+            grep -v '^#' $recipe_file | grep -qF "include_recipe"
+            if [ $? -eq 0 ]; then
+               look_for_includes
+            fi
+         fi
+#         #(( depth ++ ))
+#         depth=`expr $depth + 1`
+      done
+   done
+   #depth_hdr=$(/bin/echo "$depth_hdr"|sed 's/'"$DEPTH_STR"'//')
+   depth_hdr=$(/bin/echo "$depth_hdr"|sed 's/'"$DSP"'//')
+   #(( depth -- ))
+#   depth=`expr $depth - 1`
+}
+
+# make sure we're in the correct directory
+cd $REPO_DIR
+
+echo $1 | grep -qF "::"
+if [ $? -eq 0 ]; then
+   cookbook="`echo $1 | cut -d: -f1`"
+   recipe="`echo $1 | cut -d: -f3`.rb"
+else
+   cookbook=$1
+   recipe="default.rb"
+fi
+recipe_file="$CB_DIR/$cookbook/recipes/$recipe"
+depth_hdr=""
+prev_hdrs=""
+depth=0
+
+echo "$cookbook::$recipe"
+
+grep -v '^#' $recipe_file | grep -qF "include_recipe"
+if [ $? -eq 0 ]; then
+   look_for_includes
+fi
+
+cd - > /dev/null
