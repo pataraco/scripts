@@ -1,35 +1,36 @@
 #!/bin/sh
 #
-# File:	mvhomedir
-# Auth:	Patrick Raco
-# Date:	12/01/94
-# Desc:	Moves a user's home directy to the current directory.  
-#	Uses tar to copy the files.  Edits /etc/exports and
-#	ypmaster's auto.home.
-# 	This script must be run by root
+# File: mvhomedir
+# Auth: Patrick Raco
+# Date: 12/01/94
+# Desc: Moves a user's home directy to the current directory.
+#       Uses tar to copy the files.  Edits /etc/exports and
+#       ypmaster's auto.home.
+#
+#       This script must be run by root
 # Adtn: Additions, Improvements made...
-# 041694:Added logic to determine if the move is on the same server
-#	and/or the same filesystem.  If so, rsh/tar is/are not needed
-# 041694:Added a function to start an "at" job to automatically remove
-#	the old home dir ($user.moved)
-# 071696:Changed to modify auto.eshome not auto.home.
-#	Added code to log auto.eshome changes made.
-# Usge:	mvhomedir userid
+#  041694:Added logic to determine if the move is on the same server
+#         and/or the same filesystem.  If so, rsh/tar is/are not needed
+#  041694:Added a function to start an "at" job to automatically remove
+#         the old home dir ($user.moved)
+#  071696:Changed to modify auto.eshome not auto.home.
+#         Added code to log auto.eshome changes made.
+# Usge:   mvhomedir userid
 #
 
 
 #----------------------------------------------------------------------
 # Global variables and constants
 
-DSTSRV=`hostname`			# host this script is running on
-RANBY="$LOGNAME"			# who is running this script
-DSTDIR=`pwd`				# location we are at
-DATE=`date +%m%d%y`			# date the script is run (MMDDYY)
-LOGFILE="/usr/local/sunadmin/doc/moved.home"	# log file to log the move
-MAXDU=99990				# maximum du size to move
-SAVEOLD=7				# number of days to save old dir
-YPMASTER="tdat"				# the NIS master server
-MAILTO="$RANBY"				# notification mail-to list
+DSTSRV=`hostname`                             # host this script is running on
+RANBY="$LOGNAME"                              # who is running this script
+DSTDIR=`pwd`                                  # location we are at
+DATE=`date +%m%d%y`                           # date the script is run (MMDDYY)
+LOGFILE="/usr/local/sunadmin/doc/moved.home"  # log file to log the move
+MAXDU=99990                                   # maximum du size to move
+SAVEOLD=7                                     # number of days to save old dir
+YPMASTER="tdat"                               # the NIS master server
+MAILTO="$RANBY"                               # notification mail-to list
 
 # End Of Global Variables And Constants
 #----------------------------------------------------------------------
@@ -40,12 +41,12 @@ MAILTO="$RANBY"				# notification mail-to list
 
 #----------------------------------------------
 # Make sure this script is being run by root
-root_check() {			# check if root is running this
+root_check() {               # check if root is running this
    if [ `whoami` != "root" ]; then
       echo "error: you must be root to execute $0" >&2
       exit 1
    fi
-}	# end of root_check()
+}     # end of root_check()
 #----------------------------------------------
 
 #----------------------------------------------
@@ -82,7 +83,7 @@ check_if_logged_in() {			# try to see if the user is logged in
    echo -n "Checking if $user is logged in..."
    host=`/usr/local/bin/uhost $user | cut -d"@" -f2`
    ypmatch $host hosts > /dev/null 2>&1
-   if [ $? -ne 0 ]; then  
+   if [ $? -ne 0 ]; then
       echo "maybe not"
       return 0
    else
@@ -120,7 +121,7 @@ get_src_server() {				# get the source server
       srcsrv=`echo $srcsrv | cut -d"-" -f1`
    fi
    echo "($srcsrv)"
-} 	# end of get_src_server() 
+} 	# end of get_src_server()
 #----------------------------------------------
 
 #----------------------------------------------
@@ -136,7 +137,7 @@ thesrv=$1
       exit_with_status "NOT MOVED: $DSTSRV is not trusted by $thesrv"
    fi
    echo "yes"
-} 	# end of check_if_trusted_by() 
+} 	# end of check_if_trusted_by()
 #----------------------------------------------
 
 #----------------------------------------------
@@ -410,8 +411,8 @@ change_auto_eshome() {			# change auto.eshome on NIS server
 log_moved_home() {			# log move in $LOGFILE
    # make an entry into $LOGFILE
    echo -n "Logging move in $LOGFILE..."
-   echo "$user $srcsrv:$urealhmdir $DSTSRV:$DSTDIR/$user $DATE $RANBY" >> $LOGFILE 
-   grep "$user $srcsrv:$urealhmdir $DSTSRV:$DSTDIR/$user $DATE $RANBY" $LOGFILE 
+   echo "$user $srcsrv:$urealhmdir $DSTSRV:$DSTDIR/$user $DATE $RANBY" >> $LOGFILE
+   grep "$user $srcsrv:$urealhmdir $DSTSRV:$DSTDIR/$user $DATE $RANBY" $LOGFILE
    if [ $? -eq 0 ]		# see if we were able to write to $LOGFILE
    then
       echo "done"
@@ -486,9 +487,9 @@ tmpmailfile=/tmp/movedmsg
    echo -n "Sending notification via E-Mail..."
    echo "\
 
-Hello,  
+Hello,
 
-    The copy of your home directory has been made, 
+    The copy of your home directory has been made,
     and you are moved/pointed to the new location.
 
     Please let us know if anything is wrong.
