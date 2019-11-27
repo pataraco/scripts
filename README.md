@@ -1,35 +1,32 @@
-# scripts
-misc scripts
+# Scripts
 
-these are some really OLD scripts!
-interesting how i used to hack years ago...
-# Tools
-
-Place to keep all my tools (scripts) that I've created (and/or borrowed and
-modified, in which is commented and original sources referenced)
+Place to keep (most of) my scripts that I've created (or sometimes borrowed and
+improved, in which I try to comment about and reference original sources)
 
 ## Purpose
 
-testing, creating, sharing tools that I create.
+testing, creating, sharing my scripts for future generations...
 
 ## Description
 
-there are multiple tools within this repo.
+there are multiple scripts within this repo.
 i try to keep them organized by function/infrastructure.
 
 ## Directory Structure
 
- - `aws`     : AWS specific tools
- - `chef`    : Chef/Knife specific tools
- - `learning`: tools used for learning purposes
- - `stacker` : stacker lookups
- - `testing` : WIP tools that are being tested
+ - `aws`      : AWS specific scripts
+ - `chef`     : Chef/Knife specific scripts
+ - `learning` : scripts used for learning purposes
+ - `oldschool`: really old scripts (for posterity and to laugh at myself)
+ - `stacker`  : stacker lookups
+ - `testing`  : scripts that are still WIP and being tested
 
-## Tools
+## Scripts
 
-Here's the list of all the tools and specific info about them.
+TODO: Here's a list of highlighted scripts that I'm a little more proud of and
+general info about them.
 
-| Tools | Description | Type | Status |
+| Script | Description | Type | Status |
 |---------|-------------|:----:|:------:|
-| tool 1 | description for tool 1 | bash | WIP |
-| tool 2 | description for tool 2 | python | Done |
+| script 1 | description for script 1 | bash | WIP |
+| script 2 | description for script 2 | python | Done |
