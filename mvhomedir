@@ -1,0 +1,570 @@
+#!/bin/sh
+#
+# File:	mvhomedir
+# Auth:	Patrick Raco
+# Date:	12/01/94
+# Desc:	Moves a user's home directy to the current directory.  
+#	Uses tar to copy the files.  Edits /etc/exports and
+#	ypmaster's auto.home.
+# 	This script must be run by root
+# Adtn: Additions, Improvements made...
+# 041694:Added logic to determine if the move is on the same server
+#	and/or the same filesystem.  If so, rsh/tar is/are not needed
+# 041694:Added a function to start an "at" job to automatically remove
+#	the old home dir ($user.moved)
+# 071696:Changed to modify auto.eshome not auto.home.
+#	Added code to log auto.eshome changes made.
+# Usge:	mvhomedir userid
+#
+
+
+#----------------------------------------------------------------------
+# Global variables and constants
+
+DSTSRV=`hostname`			# host this script is running on
+RANBY="$LOGNAME"			# who is running this script
+DSTDIR=`pwd`				# location we are at
+DATE=`date +%m%d%y`			# date the script is run (MMDDYY)
+LOGFILE="/usr/local/sunadmin/doc/moved.home"	# log file to log the move
+MAXDU=99990				# maximum du size to move
+SAVEOLD=7				# number of days to save old dir
+YPMASTER="tdat"				# the NIS master server
+MAILTO="$RANBY"				# notification mail-to list
+
+# End Of Global Variables And Constants
+#----------------------------------------------------------------------
+
+#----------------------------------------------------------------------
+# Functions
+
+
+#----------------------------------------------
+# Make sure this script is being run by root
+root_check() {			# check if root is running this
+   if [ `whoami` != "root" ]; then
+      echo "error: you must be root to execute $0" >&2
+      exit 1
+   fi
+}	# end of root_check()
+#----------------------------------------------
+
+#----------------------------------------------
+# Check for the proper usage and correct number of arguments
+arg_check() {			# check for proper usage
+   if [ $# -eq 1 ]		# check if moving one user or a list
+   then				# moving one user
+      user=$1			# get the user
+   else				# invalid use, give usage
+      echo "usage: $0 userid"
+      exit 1
+   fi
+}	# end of arg_check()
+#----------------------------------------------
+
+#----------------------------------------------
+# Exit and display the status and reason for exiting
+exit_with_status() {			# add to status list
+status=$1
+
+   echo "   $status"
+   ##unlock_auto_eshome			# unlock auto.home on NIS Master
+   exit 1
+}	# end of exit_with_status()
+#----------------------------------------------
+
+#----------------------------------------------
+# This is a dummy check, to make sure the user is not logged in.
+# All this does is see if the user is logged in to the machine
+# that he/she is assigned to.
+# For this check to be more thorough, it should check if the user's
+# home dir is mounted using "showmount" on the user's source server
+check_if_logged_in() {			# try to see if the user is logged in
+   echo -n "Checking if $user is logged in..."
+   host=`/usr/local/bin/uhost $user | cut -d"@" -f2`
+   ypmatch $host hosts > /dev/null 2>&1
+   if [ $? -ne 0 ]; then  
+      echo "maybe not"
+      return 0
+   else
+      for who in `/usr/ucb/finger @${host} | tr " " "_" | cut -d"_" -f1`; do
+         if [ "$who" = "$user" ]; then
+            echo "yep"
+            exit_with_status "NOT MOVED: $user seems to be logged in"
+         fi
+      done
+   fi
+   echo "nope"
+}	# end of check_if_logged_in()
+#----------------------------------------------
+
+#----------------------------------------------
+# Get the user's auto.home entry from the NIS maps
+get_user_auto_home() {				# get the user's auto.home
+   echo -n "Getting $user's auto.home entry..."
+   # get the user's home directory
+   uah=`ypmatch $user auto.home 2> /dev/null`	# get user's auto.home entry
+   if [ $? -ne 0 ]; then			# check return status
+      echo "can't"				# user not found in auto.home
+      exit_with_status "NOT MOVED: can't get $user's auto.home entry"
+   fi
+   echo "($uah)"
+}	# end of get_user_auto_home()
+#----------------------------------------------
+
+#----------------------------------------------
+# Get the name of the server that has the user's home dir
+get_src_server() {				# get the source server
+   echo -n "Getting $user's old server..."
+   srcsrv=`echo $uah | cut -d: -f1`		# get user's current file server
+   if [ $srcsrv = "srva01-\$NET" -o $srcsrv = "srva02-\$NET" ]; then
+      srcsrv=`echo $srcsrv | cut -d"-" -f1`
+   fi
+   echo "($srcsrv)"
+} 	# end of get_src_server() 
+#----------------------------------------------
+
+#----------------------------------------------
+# Check if the server this script is running on (the destination server)
+# is trusted by another server (thesrv), passed as an arguement
+check_if_trusted_by() {				
+thesrv=$1
+
+   echo -n "Checking if $DSTSRV is trusted by $thesrv..."
+   /usr/ucb/rsh $thesrv cd > /dev/null 2>&1	# try root rsh onto the thesrv
+   if [ $? -ne 0 ]; then			# check return status
+      echo "nope"				# can't rsh as root onto thesrv
+      exit_with_status "NOT MOVED: $DSTSRV is not trusted by $thesrv"
+   fi
+   echo "yes"
+} 	# end of check_if_trusted_by() 
+#----------------------------------------------
+
+#----------------------------------------------
+# Get the user's real home directory
+get_user_homedir() {			# get the user's home directory
+   echo -n "Getting $user's home dir..."
+   uhomedir=`echo $uah | cut -d: -f2`		# user's home directory
+   fdir=`echo $uah | cut -d/ -f2`		# the files directory
+   if [ $fdir = "export" ]; then		# check for export link
+      if [ "$srcsrv" != "$DSTSRV" ]		# get the user real home dir
+      then				# servers are different; use "rsh"
+         urealhmdir=`/usr/ucb/rsh $srcsrv "cd /home/$user ; pwd"`
+      else
+         urealhmdir=`cd /home/$user ; pwd`
+      fi
+   else
+      urealhmdir=$uhomedir
+   fi
+   if [ -z "$urealhmdir" ]			# check for null values
+   then						# if size zero give warning
+      echo "can't"
+      exit_with_status "NOT MOVED: /home/$user cannot be accessed on $srcsrv"
+   fi
+   echo "($urealhmdir)"
+}	# end of get_user_homedir()
+#----------------------------------------------
+
+#----------------------------------------------
+# Get the user's du size for comparison at the end of the move
+# Used to check for a maximum du size, but not anymore
+get_user_du() {			# get the user's du size and check against max
+   echo -n "Getting the du size of ${user}'s home dir..."
+   if [ "$srcsrv" != "$DSTSRV" ]
+   then					# servers are different; use "rsh"
+      dusize=`/usr/ucb/rsh $srcsrv /bin/du -s $urealhmdir|cut -f1`	# get the du size of the user's home dir
+   else
+      dusize=`/bin/du -s $urealhmdir|cut -f1`	# get the du size of the user's home dir
+   fi
+   echo "($dusize)"
+   # don't check for du limitations
+   #if [ $dusize -gt $MAXDU ]			# compare du with MAXDU
+   #then					# du size is too big, don't move
+   #   exit_with_status "NOT MOVED: du size ($dusize) is > $MAXDU"
+   #fi
+}	# end of get_user_du()
+#----------------------------------------------
+
+#----------------------------------------------
+# Get the source directory (the parent directory) of the user's home directory
+get_user_src_dir() {				# get user's parent/source dir
+   echo -n "Getting $user's source dir..."
+   srcdir=`dirname $urealhmdir`
+   # check to see if we got good values for $srcdir
+   if [ -z "$srcdir" ]				# check for null values
+   then						# if size zero give warning
+      echo "can't"
+      exit_with_status "NOT MOVED: $urealhmdir cannot be accessed on $srcsrv"
+   fi
+   echo "($srcdir)"
+}	# end of get_user_src_dir()
+#----------------------------------------------
+
+#----------------------------------------------
+# Check to see if the user has nse environments
+# This is just a dummy ypcat and grep for nse existance, nothing more
+check_for_nse() {			# check if user has nse environments
+   echo -n "Checking for NSE environments..."
+   ypcat auto.nse | grep $user > /dev/null
+   if [ $? -eq 0 ]; then echo -n "auto.nse(Y)"; else echo -n "auto.nse(N)"; fi
+   ypcat nse.branch.byid | grep $user > /dev/null
+   if [ $? -eq 0 ]; then echo -n "nsebranch(Y)"; else echo -n "nsebranch(N)"; fi
+   echo "done"
+}	# end of check_for_nse()
+#----------------------------------------------
+
+#----------------------------------------------
+# Lock the auto.eshome NIS map on the NIS Master for edditing to assure
+# no one else will edit it at the same time.
+# This only works if the SA's use "ypvi" on the NIS Master
+lock_auto_eshome() {		# Lock auto.eshome file on NIS Master
+lockfile="/tmp/auto.eshome.vi.by"
+
+   echo -n "Locking $YPMASTER:/etc/auto.eshome for editting..."
+   viby=`rsh $YPMASTER cat $lockfile 2> /dev/null`
+   if [ ! -z "$viby" ]; then
+      echo "already locked"
+      echo "   $viby is editing /etc/auto.eshome on $YPMASTER"
+      echo "   Can't move anybody while auto.eshome is being edited"
+      exit 1
+   else
+      rsh $YPMASTER echo $LOGNAME via $0 ">" $lockfile
+   fi
+   echo "locked"
+}	# end of lock_auto_eshome()
+#----------------------------------------------
+
+#----------------------------------------------
+# Unlock the auto.eshome NIS map and give access to others that might want
+# to edit it
+unlock_auto_eshome() {		# UnLock auto.eshome file on NIS Master
+   echo -n "Unlocking $YPMASTER:/etc/auto.eshome to allow others to edit it..."
+   rsh $YPMASTER /usr/bin/rm -f $lockfile 2> /dev/null
+   if [ $? -eq 1 ]; then echo "can't"; else echo "unlocked"; fi
+}	# end of unlock_auto_eshome()
+#----------------------------------------------
+
+#----------------------------------------------
+# Show the differences made to the NIS map
+# Log the differences made and who made them
+# Save a backup in /etc/ with extension .orig
+# And move the new to the working copy
+mangal_nis_map() {
+NISMAP="$1"
+DIFFTMP="/tmp/mvuser.diffy"
+LOGDIR="/usr/local/sunadmin/log/adm"
+EDITSLOG="$LOGDIR/$NISMAP.edits"
+
+   # Get the changes made
+   /usr/ucb/rsh $YPMASTER /usr/bin/diff /etc/$NISMAP /tmp/$NISMAP.new > $DIFFTMP
+   if [ -s $DIFFTMP ]; then
+      # Show the changes made to user
+      cat $DIFFTMP
+      # Make a log entry into the log file
+      echo "=================================================" >> $EDITSLOG
+      echo "$LOGNAME changed $NISMAP (via `basename $0`) on `date`" >> $EDITSLOG
+      echo "-------------------------------------------------" >> $EDITSLOG
+      echo -n "   Changes Made: " >> $EDITSLOG
+      cat $DIFFTMP >> $EDITSLOG
+   else  
+      echo "none"
+   fi
+   # Save a backup in /etc/ with extension .orig
+   /usr/ucb/rsh $YPMASTER /usr/bin/cp /etc/$NISMAP /etc/$NISMAP.orig
+   # And move the new to the working copy
+   /usr/ucb/rsh $YPMASTER /usr/bin/mv /tmp/$NISMAP.new /etc/$NISMAP
+   # Clean up
+   rm $DIFFTMP
+}	# end of mangal_nis_map() {
+#----------------------------------------------
+ 
+#----------------------------------------------
+# We don't want to copy any core files over, so remove them
+remove_cores() {		# rm user's core files
+   echo -n "Removing core files..."
+   if [ "$srcserv" != "$DSTSERV" ]
+   then					# servers are different; use "rsh"
+      /usr/ucb/rsh $srcsrv "find $urealhmdir -name core -print -exec rm {} \;"	# find and remove core files
+   else
+      find $urealhmdir -name core -print -exec rm {} \;	# find and remove core files
+   fi
+   echo "done"
+}	# end of remove_cores()
+#----------------------------------------------
+
+#----------------------------------------------
+# This is the actual function that moves/copies over the files
+# If this move takes place on the same server and same filesystem, just use mv
+# If this move takes place on the same server and diff filesystem, use tar
+# If this move takes place between two different servers, then use rsh & tar
+move_them_files() {			# move/copy the user's files
+   echo -n "Taring the home dir..."
+   if [ "$srcsrv" != "$DSTSRV" ]
+   then				# the 2 servers are different; use "rsh" & "tar"
+      #/usr/ucb/rsh $srcsrv "cd $srcdir; tar cf - $user"|tar xfpB -			# copy user's home with tar
+      /usr/ucb/rsh $srcsrv "cd $srcdir; /usr/local/nse/bin/nsetar cf - $user"|/usr/local/nse/bin/nsetar xfpB -			# copy user's home with tar
+   else				# the 2 servers are the same; don't use "rsh"
+      # while we're at it, let's see if they're on the same filesystem
+      srcfs=`df $srcdir | grep '^/' | cut -d" " -f1`
+      dstfs=`df $DSTDIR | grep '^/' | cut -d" " -f1`
+      if [ "$srcfs" != "$dstfs" ]
+      then			# it's on a different filesystem, use "tar"
+         (cd $srcdir; /usr/local/nse/bin/nsetar cf - $user)|/usr/local/nse/bin/nsetar xfpB -			# copy user's home with tar
+      else			# it's on the same filesystem, just use "mv"
+         mv $srcdir/$user $DSTDIR	# move the user's home with mv
+         touch $srcdir/$user		# create empty file for rename_old_home
+      fi
+   fi
+   echo "done"
+}	# end of move_them_files()
+#----------------------------------------------
+
+#----------------------------------------------
+# Edit the /etc/exports files on the server(s)
+# Remove the old entry and add the new one 
+edit_etc_exports() {			# change /etc/exports on both servers
+   echo -n "Removing old entry from $srcsrv:/etc/exports..."
+   echo -n "changes made: "
+   if [ "$srcsrv" != "$DSTSRV" ]
+   then					# servers are different; use "rsh"
+      /usr/ucb/rsh $srcsrv sed "/'\/'${user}'	'/d" /etc/exports ">" /tmp/exports.new	# remove the user's entry in /etc/exports
+      /usr/ucb/rsh $srcsrv diff /etc/exports /tmp/exports.new				# display the diff
+      /usr/ucb/rsh $srcsrv cp /etc/exports /etc/exports.orig				# save a copy of the original
+      /usr/ucb/rsh $srcsrv mv -f /tmp/exports.new /etc/exports			# rename the new to /etc/exports
+   else					# servers are the same; don't use "rsh"
+      sed "/'\/'${user}'	'/d" /etc/exports > /tmp/exports.new	# remove the user's entry in /etc/exports
+      diff /etc/exports /tmp/exports.new		# display the diff
+      cp /etc/exports /etc/exports.orig			# save copy of original
+      mv -f /tmp/exports.new /etc/exports		# move new to working
+   fi
+   echo -n "Making additions to $DSTSRV:/etc/exports..."
+   echo "$DSTDIR/$user	-access=NGTD:NGRB:NGSDU:NGSI:NGSV:NGWI:NGWS" >> /etc/exports		# append the entry to /etc/exports
+   #echo "$DSTDIR/$user	-access=net_groups" >> /etc/exports		# append the entry to /etc/exports
+   echo "done"
+}	# end of edit_etc_exports()
+#----------------------------------------------
+
+#----------------------------------------------
+# Add the link "/home/user -> /filesX/user"
+add_home_link() {			# add /home/$user link
+   echo -n "Linking /home/$user -> $DSTDIR/$user..."
+   ln -s $DSTDIR/$user /home/$user				# add /home link
+   echo "done"
+}	# end of add_home_link()
+#----------------------------------------------
+
+#----------------------------------------------
+# Get the user's new du size, for comparison against the old
+get_nu_du() {			# get the new du size
+   echo -n "Getting the du size of $user's new home dir..."
+   newdu=`/bin/du -s $user | cut -f1`				# compute new du size
+   echo "($newdu)"
+}	# end of get_nu_du()
+#----------------------------------------------
+
+#----------------------------------------------
+# Remove them nasty/ugly /export links to the actual home directory
+rm_export_link() {			# remove /export/home link if it exists
+      if [ $fdir = "export" ]		# check for old /export link
+      then				# remove the /export link
+         echo -n "Removing $srcsrv:$uhomedir..."
+         if [ "$srcserv" != "$DSTSERV" ]
+         then				# servers are different; use "rsh"
+            /usr/ucb/rsh $srcsrv rm -f $uhomedir
+         else
+            rm -f $uhomedir
+         fi
+         echo "done"
+      fi
+}	# end of rm_export_link()
+#----------------------------------------------
+
+#----------------------------------------------
+# Change the auto.eshome entry in NIS on the NIS Master
+change_auto_eshome() {			# change auto.eshome on NIS server
+   echo -n "Changing $YPMASTER:/etc/auto.eshome..."
+   lineno=`/usr/ucb/rsh $YPMASTER grep -n "/${user}$" /etc/auto.eshome|cut -d: -f1`
+   if [ $DSTSRV = "srva01" -o $DSTSRV = "srva02" ]; then
+      if [ $srcsrv = "srva01" -o $srcsrv = "srva02" ]; then
+         /usr/ucb/rsh $YPMASTER sed -e ${lineno}s:$srcsrv:$DSTSRV: -e ${lineno}s:$uhomedir:$DSTDIR/$user: /etc/auto.eshome ">" /tmp/auto.eshome.new
+      else
+         /usr/ucb/rsh $YPMASTER sed -e ${lineno}s:$srcsrv:${DSTSRV}-'\$'NET: -e ${lineno}s:$uhomedir:$DSTDIR/$user: /etc/auto.eshome ">" /tmp/auto.eshome.new
+      fi
+   else
+      if [ $srcsrv = "srva01" -o $srcsrv = "srva02" ]; then
+         /usr/ucb/rsh $YPMASTER sed -e ${lineno}s:${srcsrv}-'\$'NET:$DSTSRV: -e ${lineno}s:$uhomedir:$DSTDIR/$user: /etc/auto.eshome ">" /tmp/auto.eshome.new
+      else
+         /usr/ucb/rsh $YPMASTER sed -e ${lineno}s:$srcsrv:$DSTSRV: -e ${lineno}s:$uhomedir:$DSTDIR/$user: /etc/auto.eshome ">" /tmp/auto.eshome.new
+      fi
+   fi
+   echo -n "changes made: "
+   # get the diffs made, log the diffs made, save the original, install new
+   mangal_nis_map auto.eshome
+   /usr/ucb/rsh $YPMASTER /usr/local/sunadmin/bin/makeyp auto.home				# push the new /etc/auto.eshome
+}	# end of change_auto_eshome()
+#----------------------------------------------
+
+#----------------------------------------------
+# Make a log of the move into the logfile.
+# Entries are logged in the following format:
+# UserMoved FromWhere ToWhere Date ByWho
+log_moved_home() {			# log move in $LOGFILE
+   # make an entry into $LOGFILE
+   echo -n "Logging move in $LOGFILE..."
+   echo "$user $srcsrv:$urealhmdir $DSTSRV:$DSTDIR/$user $DATE $RANBY" >> $LOGFILE 
+   grep "$user $srcsrv:$urealhmdir $DSTSRV:$DSTDIR/$user $DATE $RANBY" $LOGFILE 
+   if [ $? -eq 0 ]		# see if we were able to write to $LOGFILE
+   then
+      echo "done"
+   else
+      echo "can't!"
+      echo "WARNING: A log of the move could not be added to $LOGFILE"
+   fi
+}	# end of log_moved_home()
+#----------------------------------------------
+
+#----------------------------------------------
+# Rename the old home directory to "user".moved, for later removal
+rename_old_home() {			# rename the user's old home to ".moved"
+   # rename the home directory on the old server to "homedir".moved
+   echo -n "Renaming $srcsrv:$urealhmdir to $user.moved..."
+   if [ "$srcsrv" != "$DSTSRV" ]
+   then					# servers are different; use "rsh"
+      /usr/ucb/rsh $srcsrv /bin/mv $urealhmdir ${urealhmdir}.moved
+   else					# servers are the same; don't use "rsh"
+      /bin/mv $urealhmdir ${urealhmdir}.moved
+   fi
+   echo "done"
+}	# end of rename_old_home()
+#----------------------------------------------
+
+#----------------------------------------------
+# Unexport the user's old home dir
+unexport_old_home() {				# unexport user's old home dir
+   echo -n "Unexporting $user's old home dir..."
+   if [ "$srcsrv" != "$DSTSRV" ]
+   then					# servers are different; use "rsh"
+      /usr/ucb/rsh $srcsrv /usr/etc/exportfs -uv $uhomedir	# unexport it
+   else
+      /usr/etc/exportfs -uv $uhomedir	# unexport it
+   fi
+}	# end of unexport_old_home()
+#----------------------------------------------
+
+#----------------------------------------------
+# Export the user's new home directory
+export_new_home() {				# export the user's new home dir
+   echo -n "Exporting $user's new home dir..."
+   /usr/etc/exportfs -av $DSTDIR/$user		# export the new home dir
+}	# end of export_new_home()
+#----------------------------------------------
+
+#----------------------------------------------
+# Ask the person running this script if the move is "OK"
+# Displays the user to be moved and the location the user will be moved to
+# And then asks for a simple y/n answer.  If it doesn't get a y or Y, then
+# the user is not moved
+check_if_ok() {					# check if the move is OK
+   echo "$user is going to be moved to ${DSTSRV}:${DSTDIR}"
+   echo -n "IS THIS CORRECT? [y/n] "
+   read ans
+   if [ "$ans" = "y" -o "$ans" = "Y" ]; then
+      echo "OK, Moving $user..."
+      return 0
+   else
+      exit_with_status "NOT MOVED"
+   fi
+}	# end of check_if_ok()
+#----------------------------------------------
+
+#----------------------------------------------
+# Send email to the user to confirm the completion of the move
+# Also send email the the list of user's in $SENDTO
+notify() {			# email $user & $MAILTO of completion
+tmpmailfile=/tmp/movedmsg
+
+   # mail message to moved user and me
+   echo -n "Sending notification via E-Mail..."
+   echo "\
+
+Hello,  
+
+    The copy of your home directory has been made, 
+    and you are moved/pointed to the new location.
+
+    Please let us know if anything is wrong.
+
+    The old copy of your home dir will be removed in $SAVEOLD days.
+
+THANK YOU!!!
+
+(USA Group) --Sun Support--
+        " > $tmpmailfile
+   cat $tmpmailfile | /usr/ucb/mail -s "$user moved:$srcsrv --> $DSTSRV:$DSTDIR" $user $MAILTO
+   echo "message sent"
+   echo "   MOVED: $srcsrv:$srcdir -> $DSTSRV:$DSTDIR"
+   echo "      DU: $dusize -> $newdu"
+}	# end of notify()
+#----------------------------------------------
+
+#----------------------------------------------
+# Set up an "at" job to remove the user's old dir after $SAVEOLD days
+set_rm_at_job() {
+dir="$urealhmdir.moved"
+
+   echo -n "Starting automagic removal of $dir..."
+   at -cm now + $SAVEOLD days <<EOF
+if [ "$srcsrv" != "$DSTSRV" ]
+then				# servers are different; use "rsh"
+   /usr/ucb/rsh $srcsrv rm -r $dir
+else
+   rm -r $dir
+fi
+/usr/bin/echo "$srcsrv:$dir has sucessfully been removed"
+/usr/bin/echo "$srcsrv:$dir has sucessfully been removed"|/usr/ucb/mail -s "$srcsrv:$dir has been removed automagically" $RANBY
+EOF
+}	# end of set_rm_at_job()
+#----------------------------------------------
+
+# End Of Functions
+#---------------------------------------------------------
+
+
+#-------------------------------------------
+# Main Program
+
+date					# give a starting time
+root_check				# make sure user is root
+arg_check $*				# check usage and get the user to move
+check_if_trusted_by $YPMASTER		# see if trusted by YP Master
+##lock_auto_eshome			# lock auto.eshome access on NIS Master
+check_if_ok				# ask if the move is OK
+check_if_logged_in			# try to check if the user is logged in
+get_user_auto_home			# get the user's auto.home
+get_src_server				# get the source server
+check_if_trusted_by $srcsrv		# see if trusted by the source server
+get_user_homedir			# get the user's home directory
+get_user_src_dir			# get the user's parent/source dir
+# Don't check for nse environments
+#check_for_nse				# check if user has nse environments
+unexport_old_home			# unexport the user's old home dir
+##change_auto_eshome			# change auto.eshome on NIS server
+##unlock_auto_eshome			# give auto.eshome access on NIS Master
+remove_cores				# rm any core files in user's home
+get_user_du				# get and check the user's du size
+move_them_files				# move/copy the user's files
+edit_etc_exports			# change /etc/exports on both servers
+# uncomment the following to add the link "/home/$user -> $DSTDIR/$user"
+#add_home_link				# add /home/$user link
+export_new_home				# export the user's new home dir
+get_nu_du				# get new du for comparison
+rm_export_link				# remove /export/home link if it exists
+log_moved_home				# put entry in $LOGFILE
+rename_old_home				# rename the user's old home to ".moved"
+set_rm_at_job				# start "at" job to rm user's old dir
+notify					# email $user & $MAILTO of completion
+date					# give an ending time
+
+# 	end of Main Program
+#-------------------------------------------
+
+# EOF
