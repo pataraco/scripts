@@ -18,6 +18,7 @@ i try to keep them organized by function/infrastructure.
  - `chef`     : Chef/Knife specific scripts
  - `learning` : scripts used for learning purposes
  - `oldschool`: really old scripts (for posterity and to laugh at myself)
+ - `r5s`      : scripts created strictly for Red 5 Studios
  - `stacker`  : stacker lookups
  - `testing`  : scripts that are still WIP and being tested
 
