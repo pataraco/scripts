@@ -2,17 +2,23 @@
 #
 # Description:
 #	Change the user data script for an AWS Launch Configuration
+#
 # Usage:
-#	update_aws_lc_user_data_script LC_NAME /PATH/TO/USER_DATA_SCRIPT REGION
+#   aws_update_lc_user_data_script.py [-h] [--dry-run] [-a ASG_NAME] [-i] [-v]
+#                                     -l LC_NAME
+#                                     -r REGION
+#                                     -u USER_DATA_SCRIPT
+#
 # Requirements:
 #	Must have AWS credentials (keys) for the AWS account in which the
 #	Launch Configuration you are trying to modify resides
 #	The AWS credentials/environment must be set (i.e. with environment vars)
+#
 # TODO:
 #	- Add option to specify an AWS profile to use to obtain keys
 #	- Add code to make sure AWS environment set (Environment vars or using a profile)
 #	- check for 'NextToken' field when getting list of autoscaling groups
-#         that use the launch configuration, if found, use pagination
+#     that use the launch configuration, if found, use pagination
 
 import argparse
 import base64
