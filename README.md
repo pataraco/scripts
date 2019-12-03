@@ -17,6 +17,7 @@ i try to keep them organized by function/infrastructure.
  - `aws`      : AWS specific scripts
  - `chef`     : Chef/Knife specific scripts
  - `learning` : scripts used for learning purposes
+ - `misc`     : miscellaneous scripts that don't fit the other categories
  - `oldschool`: really old scripts (for posterity and to laugh at myself)
  - `r5s`      : scripts created strictly for Red 5 Studios
  - `stacker`  : stacker lookups
