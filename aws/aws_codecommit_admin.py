@@ -1,13 +1,13 @@
 #!/bin/env python
 #
 # Description:
-#     Quick script to create CodeCommit repo and grant/revoke users access to it
+#     Creates an AWS CodeCommit repo and grants/revokes access to/from it
 #
-#     Create an AWS CodeCommit repo if it doesn't exist, and
-#     Add/Remove user access to the AWS CodeCommit repo
+#     Creates the AWS CodeCommit repo if it doesn't exist
+#     Adds/Removes IAM user access to the AWS CodeCommit repo
 #
 # Usage:
-#     Show usage with: codecommit_admin -h
+#     Show usage with: aws_codecommit_admin.py -h
 #
 # Requirements:
 #     - Must have AWS credentials to get/create CodeCommit and IAM resources
@@ -20,21 +20,21 @@
 #
 # Steps:
 #     ADD - Granting Access
-#     - create CodeCommit repo (e.g. repo_dev_team) if it doesn't already exist
-#     - create IAM group (e.g. CodeCommit_repo_dev_team) if it doesn't already exist
-#     - attach IAM inline policy to group
-#     - create user if it doesn't already exist
-#     - create AWS keys for user if they don't have them
-#     - add user to group if they are not already a member
-#     - upload public ssh key (if applicable)
-#     - email user(s) welcome message and instructions
+#      - create CodeCommit repo (e.g. cool-app) if it doesn't already exist
+#      - create IAM group (e.g. codecommit-cool-app) if it doesn't already exist
+#      - attach IAM inline policy to group
+#      - create user if it doesn't already exist
+#      - create AWS keys for user if they don't have them
+#      - add user to group if they are not already a member
+#      - upload public ssh key (if applicable)
+#      - email user(s) welcome message and instructions
 #     REMOVE - Revoking Access
-#     - remove  user from group
-#     - email user(s) goodbye message
+#      - remove  user from group
+#      - email user(s) goodbye message
 
 # POLICY EXAMPLE:
 #---------------
-#Name: CodeCommitAccessToRepo-repo_dev_team
+#Name: CodeCommitAccessToRepo-cool-app
 #{
 #	"Version": "2012-10-17",
 #	"Statement": [
@@ -42,7 +42,7 @@
 #			"Sid": "CodeCommitAccessToRepo",
 #			"Effect": "Allow",
 #			"NotAction": "codecommit:DeleteRepository",
-#			"Resource": "arn:aws:codecommit:us-east-1:1234567890:repo_dev_team"
+#			"Resource": "arn:aws:codecommit:us-east-1:1234567890:cool-app"
 #		}
 #	]
 #}
@@ -68,20 +68,16 @@
 #         sshkey: "file://data/certskeys/example3.pub"
 
 import argparse
-import base64
 import boto3
 import botocore.exceptions
-import copy
-import difflib
-import os
 import sys
 import yaml
 
 # set some global variables
-DEFAULT_REGION = 'us-east-1'          # to create AWS CodeCommit repo
-DEFAULT_SES_REGION = 'us-west-2'      # where from email address has been verified
-FROM_EMAIL = 'nim-ops@telecomsys.com' # from email address to send notifications
-GROUP_NAME_PREFIX = 'CodeCommit_'     # to pre-pend repo name with to create group
+DEFAULT_REGION = 'us-east-1'       # to create AWS CodeCommit repo
+DEFAULT_SES_REGION = 'us-west-2'   # where from email address has been verified
+FROM_EMAIL = 'devops@example.com'  # from email address to send notifications
+GROUP_NAME_PREFIX = 'codecommit-'  # to pre-pend repo name with to create group
 IAM_POLICY_TEMPLATE = """\
 {
 	"Version": "2012-10-17",
@@ -123,7 +119,7 @@ If you have any questions or concerns, please let us know.
 
 Thank you,
 
-NIM Ops Team
+DevOps Team
 
 """
 REVOKED_SUBJECT_TEMPLATE = "AWS CodeCommit access revoked from repo: {repo}"
@@ -136,7 +132,7 @@ If this has been in error or you have any questions or concerns, please let us k
 
 Thank you,
 
-NIM Ops Team
+DevOps Team
 
 """
 ACCESS_KEYS_TEMPLATE = """\
@@ -159,7 +155,7 @@ def create_boto_service_client(service, region):
         client = boto3.client(service_name=service, region_name=region)
         debug_print("created: able {0} using region ({1}) defined".format(action, region))
     except NameError as e:
-        debug_print("error: not able {0] using region ({1}) defined".format(action, region))
+        debug_print("error: not able {0} using region ({1}) defined".format(action, region))
         sys.exit("error (region): {0}".format(e))
     except Exception as e:
         debug_print("exception(Catch All): not able {0}".format(action))
