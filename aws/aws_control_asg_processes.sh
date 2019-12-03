@@ -1,12 +1,28 @@
 #!/bin/bash
+#
 # Decription:
 #    Control (suspend/resume) ALL AWS AutoScaling processes
+#
 # Optional:
 #    Only control processes for a specified AutoScaling group name
 #    or those matching a reg-ex
+#
 # Note:
 #    Defaults to "dry-run" - to ensure correctness and prevent catastrophes
 #    Must use "--no-dry-run" option to perform
+#
+# Usage:
+#    aws_control_asg_processes.sh -r|--resume|-s|--suspend [--region REGION] [--no-dry-run] [ASGName|RegEx
+#
+# Requirements:
+#    Must have AWS environment/profile configured/enabled
+#
+# Output
+#    The output displays whether dry-urn or not and actual AWS CLI command performing
+#
+#    For example:
+#       dry-run: aws --region eu-west-1 autoscaling suspend-processes --auto-scaling-group-name web-blue
+#       running: aws --region eu-west-1 autoscaling resume-processes --auto-scaling-group-name web-green
 
 # Set some vars
 USAGE="usage: $(basename $0) -r|--resume or -s|--suspend [--region REGION] [--no-dry-run] [ASGName|RegEx]"
