@@ -2,6 +2,8 @@
 # 
 # description: simple script to find cookbooks that are not at the same bookmark level
 #
+# TODO: this is WIP, intention was to convert this bash script into python
+#       for python learning practice
 
 import os
 import sys
@@ -13,29 +15,31 @@ import json
 
 REPOS_DIR = os.environ['HOME'] + "/repos"
 COOKBOOK_REPO = REPOS_DIR + "/cookbooks"
-GRN = "\e[32m"   # green color
-RED = "\e[31m"   # red color
-NRM = "\e[m"     # to make text normal
+GRN = "\033[32m"   # green color
+RED = "\033[31m"   # red color
+NRM = "\033[m"     # to make text normal
 MAX_COOKBOOK_NAME_LEN = 0
 THIS_SCRIPT = sys.argv[0]
 USAGE = """\
 USAGE: %s [OPTIONS]
-DESCRIPTION: checks and verifies all VIPs and FIPs are configured and working correctly
+DESCRIPTION: finds cookbooks that are at different hg bookmark levels
 OPTIONS:
-   -h   help - show this message
-   -r   name/location of your repos directory
+   -h, --help   help - show this message
+   -r, --repo   name/location of your repos directory
 EXAMPLE:
    %s -r ~/repos""" % (THIS_SCRIPT,THIS_SCRIPT)
+VERSION = "0.0.1"
 
+print "----------------------"
 print "REPOS_DIR =",
 print REPOS_DIR
 print "COOKBOOK_REPO =",
 print COOKBOOK_REPO
-print "GRN =",
+print GRN + "GRN =" + NRM,
 print GRN
-print "RED =",
+print RED + "RED =" + NRM,
 print RED
-print "NRM =",
+print NRM + "NRM =",
 print NRM
 print "MAX_COOKBOOK_NAME_LEN =",
 print MAX_COOKBOOK_NAME_LEN
@@ -43,19 +47,38 @@ print "THIS_SCRIPT =",
 print THIS_SCRIPT
 print "USAGE ="
 print USAGE
-exit
+print "----------------------"
 
-## parse command line options
-##while getopts "hr:" OPT; do
-##  case ${OPT} in
-##     h) echo "$USAGE"; exit 2 ;;
-##     r) REPOS_DIR=$OPTARG ;;
-##     ?) echo "unknown option given";  echo "$USAGE"; exit 1 ;;
-##  esac
+parser = argparse.ArgumentParser(description='finds cookbooks that are at different hg bookmark levels')
+parser.add_argument('-r', '--repo', default=REPOS_DIR, help='name/location of your repos directory')
+parser.add_argument('--version', action='version', version='%(prog)s ' + VERSION)
+args = parser.parse_args()
+
+cookbook_repo = args.repo + "/cookbooks"
+
+print "cookbook_repo = %s" % cookbook_repo
+print "cookbook_repo = " + cookbook_repo
+print("cookbook_repo = {}".format(cookbook_repo))
+
+
+### for reporting purposes - get the string length of all the cookbook names
+command = "/bin/ls %s" % cookbook_repo
+process = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE)
+output = process.communicate()[0]
+cookbooks = output
+
+for cookbook in cookbooks:
+    print cookbook
+
+exit
+#for cookbook in `/bin/ls $COOKBOOK_REPO`; do
+##   if [ -d $COOKBOOK_REPO/$cookbook ]; then
+##      cookbook_name_length=`expr length $cookbook`
+##      [ $MAX_COOKBOOK_NAME_LEN -lt $cookbook_name_length ] && MAX_COOKBOOK_NAME_LEN=$cookbook_name_length
+##   fi
 ##done
-##
-##
-### for reporting purposes - get the string length of all the coombook names
+##MCNL=$MAX_COOKBOOK_NAME_LEN	# use an acroynm for printf below
+
 ##for cookbook in `/bin/ls $COOKBOOK_REPO`; do
 ##   if [ -d $COOKBOOK_REPO/$cookbook ]; then
 ##      cookbook_name_length=`expr length $cookbook`
@@ -63,6 +86,7 @@ exit
 ##   fi
 ##done
 ##MCNL=$MAX_COOKBOOK_NAME_LEN	# use an acroynm for printf below
+
 ##
 ### cd to each directory (cookbook) and run the `hg bookmark` command, then grab the versions
 ### also display the results
