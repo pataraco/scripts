@@ -14,15 +14,16 @@ i try to keep them organized by function/infrastructure.
 
 ## Directory Structure
 
- - `aws`      : AWS specific scripts
- - `chef`     : Chef/Knife specific scripts
- - `learning` : scripts used for learning purposes
- - `misc`     : miscellaneous scripts that don't fit the other categories
- - `oldschool`: really old scripts (for posterity and to laugh at myself)
- - `openstack`: OpenStack specific scripts
- - `r5s`      : scripts created strictly for Red 5 Studios
- - `stacker`  : stacker lookups
- - `testing`  : scripts that are still WIP and being tested
+ - `aws`       : AWS specific scripts
+ - `chef`      : Chef/Knife specific scripts
+ - `learning`  : scripts used for learning purposes
+ - `misc`      : miscellaneous scripts that don't fit the other categories
+ - `oldschool` : really old scripts (for posterity and to laugh at myself)
+ - `openstack` : OpenStack specific scripts
+ - `serverless`: serverless (AWS Lambda) functions
+ - `r5s`       : scripts created strictly for Red 5 Studios
+ - `stacker`   : stacker lookups
+ - `testing`   : scripts that are still WIP and being tested
 
 ## Scripts
 

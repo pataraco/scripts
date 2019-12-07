@@ -2,9 +2,12 @@
 
 console.log('Hello World!');
 
-var x = 'Hello ';
+var x = 'Hello';
 var y = 'World!';
-console.log(x + y);
+console.log(x + ' ' + y);
+
+var msg = `${x} ${y}`;
+console.log(msg);
 
 console.log('Multiline\nmessage!');
 console.log(`Multiline
