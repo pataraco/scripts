@@ -105,3 +105,6 @@ venv.bak/
 
 # MAC O.S. Finder
 .DS_Store
+
+# compressed files
+*.zip

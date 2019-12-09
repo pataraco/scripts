@@ -2,7 +2,7 @@
 
 var i = 1;
 var limit = 10;
-while(i <= limit) {
+while (i <= limit) {
     console.log('i: ' + i + ' limit: ' + limit);
     i++;
     limit = limit - 2;
@@ -14,10 +14,10 @@ do {
     console.log('i: ' + i + ' limit: ' + limit);
     i++;
     limit = limit - 2;
-} while(i <= limit);
+} while (i <= limit);
 
 var limit = 10;
-for(i=0; i <= limit; i++) {
+for (i=0; i <= limit; i++) {
     console.log('i: ' + i + ' limit: ' + limit);
     limit = limit - 2;
 }
@@ -28,6 +28,6 @@ list.forEach(function(item) {
 })
 
 var list = [10, 20, 30];
-for(var item of list) {
+for (var item of list) {
     console.log('item: ' + item);
 }
