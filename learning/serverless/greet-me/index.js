@@ -14,7 +14,7 @@ exports.handler = async (event, context) => {
     console.log('Handling function:', fName, '- version:', fVersion);
 
     let name = event.pathParameters.name;
-    let {lang, ...remaining} = event.queryStringParameters;
+    let {lang, ...remaining} = event.queryStringParameters || {};
     
     let message = `${greetings[lang] ? greetings[lang] : greetings['en']} ${name}`;
     let body = {
@@ -24,6 +24,9 @@ exports.handler = async (event, context) => {
     }
     let response = {
         'statusCode': 200,
+        'headers': {
+            'Access-Control-Allow-Origin': '*'
+        },
         'body': JSON.stringify(body)
     }
     console.log('event.pathParameters.name =', name);
