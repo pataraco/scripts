@@ -16,6 +16,15 @@
 //    }
 // }
 //
+// #set($inputRoot = $input.path('$'))
+// {
+//   "operation" : "$input.params('operation')",
+//   "input" : {
+//     "operand1" : $inputRoot.num1,
+//     "operand2" : $inputRoot.num2
+//   }
+// }
+//
 // API - Integration Response
 // {
 //    "result": $input.json('$.body')
