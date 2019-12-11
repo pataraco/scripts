@@ -106,3 +106,39 @@ exports.handler = async (event, context) => {
     return response;
 };
 // --- hondler example 3 (END) ---
+
+// =============================================================
+
+// --- hondler environment variables (BEGIN) ---
+const AWS = require('aws-sdk');
+AWS.config.update({ region: 'us-west-2' });
+
+const encryptedDbPassword = process.env['DB_PASSWORD'];
+let decryptedDbPassword;
+
+async function processEvent(event, context) {
+    let log = event;
+    log.functionName = context.functionName;
+    log.functionVersion = context.functionVersion;
+    log.db_user = process.env.DB_USER;
+    log.db_name = process.env.DB_NAME;
+    log.db_password_encrypted = encryptedDbPassword;
+    log.db_password_decrypted = decryptedDbPassword;
+    return log;
+}
+
+exports.handler = async (event, context) => {
+    if (decryptedDbPassword) {
+        return processEvent(event, context);
+    } else {
+        // Decrypt code should run once and variables stored outside of the
+        // function handler so that these are decrypted once per container
+        const kms = new AWS.KMS();
+        let data = await kms.decrypt({
+            CiphertextBlob: new Buffer(encryptedDbPassword, 'base64')
+        }).promise();
+        decryptedDbPassword = data.Plaintext.toString('ascii');
+        return processEvent(event, context);
+    }
+};
+// --- hondler environment variables (END) ---
