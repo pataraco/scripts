@@ -47,13 +47,13 @@
 //     console.log('context.getRemainingTimeInMillis() =', context.getRemainingTimeInMillis());
 //     console.log('context.functionName               =', context.functionName);
 //     console.log('context.functionVersion            =', context.functionVersion);
-    
+
 //     // console.log('environment variable: Creator      =', Creator);
-    
+
 //     // console.log('context.clientContext              =', context.clientContext);
 //     // console.log('context.clientContext.env          =', context.clientContext.env);
 //     // console.log('context.clientContext.env.Creator  =', context.clientContext.env.Creator);
-    
+
 //     // throw new Error('Something went wrong');
 
 //     console.info('an informative message');
@@ -88,7 +88,7 @@ exports.handler = async (event, context) => {
 
     let name = event.pathParameters.name;
     let {lang, ...remaining} = event.queryStringParameters;
-    
+
     let message = `${greetings[lang] ? greetings[lang] : greetings['en']} ${name}`;
     let body = {
         timestamp: moment().unix(),
@@ -142,3 +142,44 @@ exports.handler = async (event, context) => {
     }
 };
 // --- hondler environment variables (END) ---
+
+// --- hondler timeout (BEGIN) ---
+exports.handler = async (event) => {
+    let duration = 2000  // milliseconds
+    console.log(JSON.stringify(event));
+    let timeout = (ms) => {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    await timeout(duration)
+    return `Timeout Complete: ${duration}`;
+};
+// --- hondler timeout (END) ---
+
+// --- hondler invoke lambda (BEGIN) ---
+const AWS = require('aws-sdk');
+AWS.config.update({region: 'us-west-2'});
+
+var lambda = new AWS.Lambda();
+
+exports.handler = async (event) => {
+    let x = event.number;
+
+    let payload = JSON.stringify({
+        operation: 'multiply',
+        input: {
+            operand1: x,
+            operand2: x
+        }
+    });
+
+    let params = {
+        FunctionName: 'calculator',
+        InvocationType: 'RequestResponse',  // sync or 'Event' for async
+        Payload: payload
+    }
+
+    let data = await lambda.invoke(params).promise();
+    let result = JSON.parse(data.Payload);
+    return result.body;
+};
+// --- hondler invoke lambda (END) ---
