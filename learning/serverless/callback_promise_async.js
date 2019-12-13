@@ -18,7 +18,7 @@ exports.handler = async (event, context) => {
     return newImage;
 }
 
-const newImage = (data) => new Promise((resolve, reject) => {
+const resizeImage = (data) => new Promise((resolve, reject) => {
     // resize the image
     if (data) {
         resolve(result);

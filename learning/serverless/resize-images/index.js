@@ -3,14 +3,14 @@ const fs = require('fs');
 const os = require('os');
 const uuidv4 = require('uuid/v4');
 const {promisify} = require('util');
-const aws = require('aws-sdk');
+const AWS = require('aws-sdk');
 
 const resizeAsync = promisify(im.resize);
 const readFileAsync = promisify(fs.readFile);
 const unlinkAsync = promisify(fs.unlink);
 
-aws.config.update({region: 'us-east-1'});
-const s3 = new aws.S3();
+AWS.config.update({region: 'us-west-2'});
+const s3 = new AWS.S3();
 
 exports.handler = async (event) => {
     let filesProcessed = event.Records.map(async (record) => {
