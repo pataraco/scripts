@@ -44,4 +44,3 @@ exports.handler = async (event) => {
     await documentClient.put(params).promise();
     return true;
 };
-
