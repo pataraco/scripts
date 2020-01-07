@@ -1,12 +1,12 @@
 'use strict'
 
-// --- Node.js 6.10 ---
+// --- Node.js 6.10 --- -------------------------------
 // exports.handler = (event, context, callback) => {
 //     // do some stuff
 //     callback(null, result);
 // }
 
-// --- Node.js 8.10/10.x/12.x ---
+// --- Node.js 8.10/10.x/12.x --- -------------------------------
 // exports.handler = async (event, context) => {
 //     // do some stuff
 //     return result;
@@ -14,7 +14,7 @@
 
 // =============================================================
 
-// --- hondler example 1 (BEGIN) ---
+// --- hondler example 1 (BEGIN) --- -------------------------
 // exports.handler = async (event, context) => {
 //     const data = event.data;
 //     let newImage = await resizeImage();
@@ -29,11 +29,10 @@
 //         reject(error);
 //     }
 // });
-// --- hondler example 1 (END) ---
+// --- hondler example 1 (END) --- -------------------------
 
-// =============================================================
 
-// --- hondler example 2 (BEGIN) ---
+// --- hondler example 2 (BEGIN) --- -------------------------
 // event: Amazon SNS Topic Notification
 
 // console.log('Loading function');
@@ -63,11 +62,11 @@
 
 //     return event.Records[0].EventSource;                                                    // SNS event
 // };
-// --- hondler example 2 (END) ---
+// --- hondler example 2 (END) --- -------------------------
 
-// =============================================================
 
-// --- hondler example 3 (BEGIN) ---
+// --- hondler example 3 (BEGIN) --- -------------------------
+// function: simple hello greeting
 // event: Amazon API Gateway AWS Proxy
 
 console.log('Loading function');
@@ -105,11 +104,10 @@ exports.handler = async (event, context) => {
 
     return response;
 };
-// --- hondler example 3 (END) ---
+// --- hondler example 3 (END) --- -------------------------
 
-// =============================================================
 
-// --- hondler environment variables (BEGIN) ---
+// --- hondler environment variables (BEGIN) --- -------------------------
 const AWS = require('aws-sdk');
 AWS.config.update({ region: 'us-west-2' });
 
@@ -141,9 +139,10 @@ exports.handler = async (event, context) => {
         return processEvent(event, context);
     }
 };
-// --- hondler environment variables (END) ---
+// --- hondler environment variables (END) --- -------------------------
 
-// --- hondler timeout (BEGIN) ---
+
+// --- hondler timeout (BEGIN) --- -------------------------
 exports.handler = async (event) => {
     let duration = 2000  // milliseconds
     console.log(JSON.stringify(event));
@@ -153,9 +152,12 @@ exports.handler = async (event) => {
     await timeout(duration)
     return `Timeout Complete: ${duration}`;
 };
-// --- hondler timeout (END) ---
+// --- hondler timeout (END) --- -------------------
 
-// --- hondler invoke lambda (BEGIN) ---
+
+// --- hondler invoke lambda (BEGIN) --- -------------------
+// function: SquareCalc
+// description: invokes another lambda function
 const AWS = require('aws-sdk');
 AWS.config.update({region: 'us-west-2'});
 
@@ -176,10 +178,26 @@ exports.handler = async (event) => {
         FunctionName: 'calculator',
         InvocationType: 'RequestResponse',  // sync or 'Event' for async
         Payload: payload
-    }
+    };
 
     let data = await lambda.invoke(params).promise();
     let result = JSON.parse(data.Payload);
     return result.body;
 };
-// --- hondler invoke lambda (END) ---
+// --- hondler invoke lambda (END) --- -------------------
+
+
+// --- hondler force timeout (BEGIN) --- -------------------
+// function: DlqTest
+// description: shows/tests lambda timeout features/behaviors
+// install: set lambda timeout to < 2 seconds and test
+exports.handler = async (event) => {
+    let duration = 2000  // milliseconds
+    console.log(JSON.stringify(event));
+    let timeout = (ms) => {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    await timeout(duration)
+    return `DLQ Test Complete: ${duration}`;
+};
+// --- hondler force timeout (END)   --- -------------------
