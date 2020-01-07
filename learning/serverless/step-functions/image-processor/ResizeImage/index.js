@@ -46,6 +46,11 @@ exports.handler = async (event) => {
     console.log('S3 put args:', s3Args);
     await s3.putObject(s3Args).promise();
     await unlinkAsync(tempFile);
+    var s3Args = {
+        Bucket: bucket,
+        Key: sourceKey
+    }
+    await s3.deleteObject(s3Args).promise();
     return {
         from: `${bucket}/${key}`,
         to: `${bucket}/${targetKey}`
