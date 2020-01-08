@@ -12,7 +12,7 @@ def lambda_handler(event, context):
     associated with the token. This can be accomplished in a number of ways:
 
     1. Call out to the OAuth provider
-    2. Decode a JWT token inline
+    2. Decode a JWT token inline (jwt.io)
     3. Lookup in a self-managed DB
     '''
     principalId = 'user|a1b2c3d4'
