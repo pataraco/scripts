@@ -17,11 +17,11 @@
 """
 
 import argparse
-import boto3
 import os
+from datetime import datetime
 import pytz
 from tabulate import tabulate
-from datetime import datetime
+import boto3
 
 
 # set globals
@@ -78,90 +78,103 @@ elbv2 = boto3.client('elbv2', region_name=region)
 
 
 # get all server certificates (IAM)
-certs = iam.list_server_certificates()['ServerCertificateMetadataList']
-for cert in certs:
-    # get the name, ID and expiration date of the cert
-    expiration_date = cert['Expiration']
-    name = cert['ServerCertificateName']
-    cert_id = cert['ServerCertificateId']
-    name = f'{name} [{cert_id}]'
-    # show progress
-    print(
-        f'getting/processing all [IAM] server certificates:'
-        f' {name}{D2E}', end = '\r')
-    # save it in the dict
-    all_certs[cert['Arn']] = {
-        'name': name,
-        'exp': expiration_date,
-        'users': [] }
+paginator = iam.get_paginator('list_server_certificates')
+page_iter = paginator.paginate()
+for page in page_iter:
+    # for cert in iam.list_server_certificates()['ServerCertificateMetadataList']
+    for cert in page['ServerCertificateMetadataList']:
+        # get the name, ID and expiration date of the cert
+        expiration_date = cert['Expiration']
+        name = cert['ServerCertificateName']
+        cert_id = cert['ServerCertificateId']
+        name = f'{name} [{cert_id}]'
+        # show progress
+        print(
+            f'getting/processing all [IAM] server certificates:'
+            f' {name}{D2E}', end='\r'
+        )
+        # save it in the dict
+        all_certs[cert['Arn']] = {
+            'name': name,
+            'exp': expiration_date,
+            'users': []
+        }
 
 
 # get all SSL/TLS certificates (ACM)
-certs = acm.list_certificates()['CertificateSummaryList']
-for cert in certs:
-    # get the cert description and specifically,
-    # the domain (name), ID and expiration date (exp)
-    certificate = acm.describe_certificate(
-        CertificateArn=cert['CertificateArn'])['Certificate']
-    expiration_date = certificate['NotAfter']
-    domain_name = certificate['DomainName']
-    cert_id = cert['CertificateArn'].split('/')[1]
-    name = f'{domain_name} [{cert_id}]'
-    # show progress
-    print(
-        f'getting/processing all [ACM] SSL/TLS certificates:'
-        f' {name}{D2E}', end = '\r')
-    # save it in the dict
-    all_certs[cert['CertificateArn']] = {
-        'name': name,
-        'exp': expiration_date,
-        'users': [] }
-    # get the users
-    # (arn format of relevant resources)
-    # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/${Name}
-    # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/app/${Name}/${ID}
-    # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/net/${Name}/${ID}
-    # arn:aws:cloudfront::${Acct}:distribution/${ID}
-    in_use_bye = certificate.get('InUseBy')
-    for user in in_use_bye:
-        # get all ARNs that are NOT classic load balancers
-        # (since those have already been processed above)
-        service = user.split(':')[2]
-        if service == 'cloudfront':
-            resource = 'CloudFront'
-            name = user.split(':')[5].split('/')[1]
-            all_certs[cert['CertificateArn']]['users'].append(
-                    f'{name} ({resource})')
-        elif service == 'elasticloadbalancing':
-            # classic LB ARN names only have 2 last
-            # values (e.g. loadbalancer/${name})
-            if len(user.split(':')[5].split('/')) > 2:
-                lb_type = user.split(':')[5].split('/')[1]
-                if lb_type == 'app':
-                    resource = 'ALB'
-                elif lb_type == 'net':
-                    resource = 'NLB'
-                else:
-                    resource = 'UNK'
-                name = user.split(':')[5].split('/')[2]
+paginator = acm.get_paginator('list_certificates')
+page_iter = paginator.paginate()
+for page in page_iter:
+    # for cert in acm.list_certificates()['CertificateSummaryList']:
+    for cert in page['CertificateSummaryList']:
+        # get the cert description and specifically,
+        # the domain (name), ID and expiration date (exp)
+        certificate = acm.describe_certificate(
+            CertificateArn=cert['CertificateArn'])['Certificate']
+        expiration_date = certificate['NotAfter']
+        domain_name = certificate['DomainName']
+        cert_id = cert['CertificateArn'].split('/')[1]
+        name = f'{domain_name} [{cert_id}]'
+        # show progress
+        print(
+            f'getting/processing all [ACM] SSL/TLS certificates:'
+            f' {name}{D2E}', end='\r')
+        # save it in the dict
+        all_certs[cert['CertificateArn']] = {
+            'name': name,
+            'exp': expiration_date,
+            'users': []
+        }
+        # get the users
+        # (arn format of relevant resources)
+        # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/${Name}
+        # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/app/${Name}/${ID}
+        # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/net/${Name}/${ID}
+        # arn:aws:cloudfront::${Acct}:distribution/${ID}
+        in_use_by = certificate.get('InUseBy')
+        for user in in_use_by:
+            # get all ARNs that are NOT classic load balancers
+            # (since those have already been processed above)
+            service = user.split(':')[2]
+            if service == 'cloudfront':
+                resource = 'CloudFront'
+                name = user.split(':')[5].split('/')[1]
                 all_certs[cert['CertificateArn']]['users'].append(
+                    f'{name} ({resource})')
+            elif service == 'elasticloadbalancing':
+                # classic LB ARN names only have 2 last
+                # values (e.g. loadbalancer/${name})
+                if len(user.split(':')[5].split('/')) > 2:
+                    lb_type = user.split(':')[5].split('/')[1]
+                    if lb_type == 'app':
+                        resource = 'ALB'
+                    elif lb_type == 'net':
+                        resource = 'NLB'
+                    else:
+                        resource = 'UNK'
+                    name = user.split(':')[5].split('/')[2]
+                    all_certs[cert['CertificateArn']]['users'].append(
                         f'{name} ({resource})')
 
 
 # check all the classic load balancers
-for load_balancer in elb.describe_load_balancers()['LoadBalancerDescriptions']:
-    # get name and listeners
-    lb_name = load_balancer['LoadBalancerName']
-    listeners = load_balancer.get('ListenerDescriptions')
-    # show progress
-    print(
-        f'getting/processing all classic load balancers:'
-        f' {lb_name}{D2E}', end = '\r')
-    # check for and get certs in use
-    for listener in listeners:
-        cert_arn = listener['Listener'].get('SSLCertificateId')
-        if cert_arn:
-            all_certs[cert_arn]['users'].append(lb_name + ' (CLB)')
+paginator = elb.get_paginator('describe_load_balancers')
+page_iter = paginator.paginate()
+for page in page_iter:
+    # for load_balancer in elb.describe_load_balancers()['LoadBalancerDescriptions']:
+    for load_balancer in page['LoadBalancerDescriptions']:
+        # get name and listeners
+        lb_name = load_balancer['LoadBalancerName']
+        listeners = load_balancer.get('ListenerDescriptions')
+        # show progress
+        print(
+            f'getting/processing all classic load balancers:'
+            f' {lb_name}{D2E}', end='\r')
+        # check for and get certs in use
+        for listener in listeners:
+            cert_arn = listener['Listener'].get('SSLCertificateId')
+            if cert_arn:
+                all_certs[cert_arn]['users'].append(lb_name + ' (CLB)')
 
 
 # print out all the certs and their expiratons and the LBs that use them
