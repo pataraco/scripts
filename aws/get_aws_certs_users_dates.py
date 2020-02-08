@@ -125,36 +125,36 @@ for page in page_iter:
             'exp': expiration_date,
             'users': []
         }
-        # get the users
-        # (arn format of relevant resources)
-        # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/${Name}
-        # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/app/${Name}/${ID}
-        # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/net/${Name}/${ID}
-        # arn:aws:cloudfront::${Acct}:distribution/${ID}
-        in_use_by = certificate.get('InUseBy')
-        for user in in_use_by:
-            # get all ARNs that are NOT classic load balancers
-            # (since those have already been processed above)
-            service = user.split(':')[2]
-            if service == 'cloudfront':
-                resource = 'CloudFront'
-                name = user.split(':')[5].split('/')[1]
-                all_certs[cert['CertificateArn']]['users'].append(
-                    f'{name} ({resource})')
-            elif service == 'elasticloadbalancing':
-                # classic LB ARN names only have 2 last
-                # values (e.g. loadbalancer/${name})
-                if len(user.split(':')[5].split('/')) > 2:
-                    lb_type = user.split(':')[5].split('/')[1]
-                    if lb_type == 'app':
-                        resource = 'ALB'
-                    elif lb_type == 'net':
-                        resource = 'NLB'
-                    else:
-                        resource = 'UNK'
-                    name = user.split(':')[5].split('/')[2]
-                    all_certs[cert['CertificateArn']]['users'].append(
-                        f'{name} ({resource})')
+        # # get the users
+        # # (arn format of relevant resources)
+        # # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/${Name}
+        # # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/app/${Name}/${ID}
+        # # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/net/${Name}/${ID}
+        # # arn:aws:cloudfront::${Acct}:distribution/${ID}
+        # in_use_by = certificate.get('InUseBy')
+        # for user in in_use_by:
+        #     # get all ARNs that are NOT classic load balancers
+        #     # (since those have already been processed above)
+        #     service = user.split(':')[2]
+        #     if service == 'cloudfront':
+        #         resource = 'CloudFront'
+        #         name = user.split(':')[5].split('/')[1]
+        #         all_certs[cert['CertificateArn']]['users'].append(
+        #             f'{name} ({resource})')
+        #     elif service == 'elasticloadbalancing':
+        #         # classic LB ARN names only have 2 last
+        #         # values (e.g. loadbalancer/${name})
+        #         if len(user.split(':')[5].split('/')) > 2:
+        #             lb_type = user.split(':')[5].split('/')[1]
+        #             if lb_type == 'app':
+        #                 resource = 'ALB'
+        #             elif lb_type == 'net':
+        #                 resource = 'NLB'
+        #             else:
+        #                 resource = 'UNK'
+        #             name = user.split(':')[5].split('/')[2]
+        #             all_certs[cert['CertificateArn']]['users'].append(
+        #                 f'{name} ({resource})')
 
 
 # check all the classic load balancers
@@ -174,7 +174,36 @@ for page in page_iter:
         for listener in listeners:
             cert_arn = listener['Listener'].get('SSLCertificateId')
             if cert_arn:
-                all_certs[cert_arn]['users'].append(lb_name + ' (CLB)')
+                port = listener['Listener'].get('LoadBalancerPort')
+                all_certs[cert_arn]['users'].append(f'{lb_name} [{port}] (CLB)')
+
+
+# check all the ALB/NLB (V2) load balancers
+paginator = elbv2.get_paginator('describe_load_balancers')
+for page in paginator.paginate():
+    for load_balancer in page['LoadBalancers']:
+        # get arn, name and listeners
+        lb_arn = load_balancer['LoadBalancerArn']
+        lb_name = load_balancer['LoadBalancerName']
+        lb_type = load_balancer['Type']
+        if lb_type == 'application':
+            resource = 'ALB'
+        elif lb_type == 'network':
+            resource = 'NLB'
+        else:
+            resource = 'UNK'
+        # show progress
+        print(
+            f'getting/processing all ALB/NLB load balancers:'
+            f' {lb_name}{D2E}', end='\r')
+        listeners_paginator = elbv2.get_paginator('describe_listeners')
+        for listeners_page in listeners_paginator.paginate(LoadBalancerArn=lb_arn):
+            for listener in listeners_page['Listeners']:
+                certs = listener.get('Certificates')
+                if certs:
+                    port = listener.get('Port')
+                    for cert in certs:
+                        all_certs[cert['CertificateArn']]['users'].append(f'{lb_name} [{port}] ({resource})')
 
 
 # print out all the certs and their expiratons and the LBs that use them
