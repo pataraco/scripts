@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# NOTE: this script iw WIP and NOT done
 """
     Description:
         Quick/dirty script to get/check the expiration dates of the
@@ -14,6 +13,8 @@
 
     ToDo:
         - add proper/specific error exception handling
+        - add json output option
+        - add option to only show certs expiring with N days
 """
 
 import argparse
