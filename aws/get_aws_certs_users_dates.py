@@ -106,7 +106,6 @@ for page in paginator.paginate():
         iam_cert_arns[cert_id] = cert['Arn']
 
 
-
 # get all SSL/TLS certificates (ACM)
 # example ARN = arn:aws:acm:REGION:AWS_ACCT:certificate/ID
 for acm_region in list(set(['us-east-1', region])):
@@ -133,36 +132,6 @@ for acm_region in list(set(['us-east-1', region])):
                 'exp': expiration_date,
                 'users': []
             }
-            # # get the users
-            # # (arn format of relevant resources)
-            # # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/${Name}
-            # # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/app/${Name}/${ID}
-            # # arn:aws:elasticloadbalancing:${Rgn}:${Acct}:loadbalancer/net/${Name}/${ID}
-            # # arn:aws:cloudfront::${Acct}:distribution/${ID}
-            # in_use_by = certificate.get('InUseBy')
-            # for user in in_use_by:
-            #     # get all ARNs that are NOT classic load balancers
-            #     # (since those have already been processed above)
-            #     service = user.split(':')[2]
-            #     if service == 'cloudfront':
-            #         resource = 'CloudFront'
-            #         name = user.split(':')[5].split('/')[1]
-            #         all_certs[cert['CertificateArn']]['users'].append(
-            #             f'{name} ({resource})')
-            #     elif service == 'elasticloadbalancing':
-            #         # classic LB ARN names only have 2 last
-            #         # values (e.g. loadbalancer/${name})
-            #         if len(user.split(':')[5].split('/')) > 2:
-            #             lb_type = user.split(':')[5].split('/')[1]
-            #             if lb_type == 'app':
-            #                 resource = 'ALB'
-            #             elif lb_type == 'net':
-            #                 resource = 'NLB'
-            #             else:
-            #                 resource = 'UNK'
-            #             name = user.split(':')[5].split('/')[2]
-            #             all_certs[cert['CertificateArn']]['users'].append(
-            #                 f'{name} ({resource})')
 
 
 # generate a place to store a CloudFront default certificate users
