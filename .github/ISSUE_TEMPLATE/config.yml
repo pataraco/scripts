@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: GitHub Community Support
+    url: https://github.community/
+    about: You can ask and answer general GitHub questions here.
+  - name: GitHub Security Bug Bounty
+    url: https://bounty.github.com/
+    about: You can report general GitHub security vulnerabilities here.
