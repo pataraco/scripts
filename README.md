@@ -34,3 +34,4 @@ general info about them.
 |---------|-------------|:----:|:------:|
 | script 1 | description for script 1 | bash | WIP |
 | script 2 | description for script 2 | python | Done |
+| script 3 | description for script 3 | go | Done |
