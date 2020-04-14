@@ -2,7 +2,7 @@
 name: "\U0001F308 Feature request ⚡️"
 about: Suggest an idea for this project
 title: 'Feature Request: <DESCRIPTIVE_TITLE>'
-labels: enhancement
+labels: "\U0001F308 enhancement ⚡️"
 assignees: pataraco
 
 ---
