@@ -8,9 +8,9 @@ console.log(emp);
 console.log('emp.first: ' + emp.first);
 
 var emp2 = {
-    first: 'John',
-    last: 'Doe',
-    age: 40
+  first: 'John',
+  last: 'Doe',
+  age: 40
 };
 console.log(emp2);
 console.log('emp2.age: ' + emp2.age);
