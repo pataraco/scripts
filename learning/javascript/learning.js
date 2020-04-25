@@ -13,6 +13,25 @@ console.log('Multiline\nmessage!');
 console.log(`Multiline
 message!`);
 
+// Boolean Coercion
+let userInput = '';
+const isValidInput = !!userInput;  // false
+let userInput = 'Foo Bar';
+const isValidInput = !!userInput;  // true
+
+// Default settings or set if true
+let userInput = '';
+name = userInput || 'No Input Given';  // 'No Input Given'
+name = userInput && 'Input Given';     // ''
+let userInput = 'Foo Bar';
+name = userInput || 'No Input Given';  // 'Foo Bar'
+name = userInput && 'Input Given';     // 'Input Given'
+
+
+// Ternary
+let isValidInput = userInput ? true : false
+
+
 var z;
 console.log(z);  // undefined
 
