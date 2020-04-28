@@ -30,6 +30,7 @@ USAGE="\
 usage: $THIS_SCRIPT [OPTIONS]
    -o | --old-cidr OLD_CIDR  - the old CIDR to search for
    -n | --new-cidr NEW_CIDR  - the new CIDR to add
+   -d | --new-desc NEW_DESC  - the description for the new CIDR
    -r | --region REGION      - specify AWS region to work in (default: $region)
                              - specify 'all' to search all available regions
    --dry-run                 - perform dry-run, just show the command(s)
@@ -53,6 +54,7 @@ while [ -n "$1" ]; do
    case "$1" in
       -o|--old-cidr) old_cidr="$2"       ; shift 2;;
       -n|--new-cidr) new_cidr="$2"       ; shift 2;;
+      -d|--new-desc) new_desc="$2"       ; shift 2;;
       -r|--region)   region="$2"         ; shift 2;;
       --dry-run)     dryrun="--dry-run"  ; shift  ;;
       -h|--help|*)   echo "$USAGE"       ; exit   ;;
@@ -62,132 +64,80 @@ done
 # Verify required options provided
 [ -z "$old_cidr" ] && { echo "$USAGE"; exit 2; }
 [ -z "$new_cidr" ] && { echo "$USAGE"; exit 2; }
+[ -z "$new_desc" ] && { echo "$USAGE"; exit 2; }
 
 # Get any optional specific ASG name or Reg-Ex to perform on
-ip_permission_filter="Name=ip-permission.cidr,Values=*$old_cidr*"
-query="SecurityGroups[].[GroupId,GroupName,VpcId]"
+# query="SecurityGroups[].[GroupId,GroupName,VpcId]"
+new_ip_range='"IpRanges":[{"CidrIp":"'"$new_cidr"'","Description":"'"$new_desc"'"}],'
 
-##############################
-#           "IpPermissions": [
-#               {
-#                   "IpProtocol": "-1",
-#                   "IpRanges": [
-#                       {
-#                           "CidrIp": "98.174.154.130/32"
-#                       },
-#                       {
-#                           "CidrIp": "38.107.187.50/32"
-#                       },
-#                       {
-#                           "CidrIp": "10.100.10.0/23"
-#                       },
-#                       {
-#                           "CidrIp": "10.100.20.0/23"
-#                       },
-#                       {
-#                           "CidrIp": "10.100.30.0/23"
-#                       },
-#                       {
-#                           "CidrIp": "10.100.100.0/23"
-#                       }
-#                   ],
-#                   "Ipv6Ranges": [],
-#                   "PrefixListIds": [],
-#                   "UserIdGroupPairs": []
-#               },
-##############################
-#           "IpPermissions": [
-#               {
-#                   "FromPort": 5439,
-#                   "IpProtocol": "tcp",
-#                   "IpRanges": [
-#                       {
-#                           "CidrIp": "52.25.130.38/32",
-#                           "Description": "Segment.io Access"
-#                       },
-#                       {
-#                           "CidrIp": "98.174.154.130/32",
-#                           "Description": "AG Office Access"
-#                       },
-#                       {
-#                           "CidrIp": "38.107.187.50/32",
-#                           "Description": "AG Office Access"
-#                       }
-#                   ],
-#                   "Ipv6Ranges": [],
-#                   "PrefixListIds": [],
-#                   "ToPort": 5439,
-#                   "UserIdGroupPairs": [
-#                       {
-#                           "Description": "Open 5439 to sg-137ecd62",
-#                           "GroupId": "sg-137ecd62",
-#                           "UserId": "111109246567"
-#                       },
-#                       {
-#                           "Description": "Tools Default Security Group",
-#                           "GroupId": "sg-d7b55faf",
-#                           "UserId": "111109246567"
-#                       }
-#                   ]
-#               }
-#           ],
-#
-##############################
 
-new_ip_range='"IpRanges":[{"CidrIp":"'"$new_cidr"'","Description":"AG Cox Internal Access"}],'
+get_list_of_sgs () {
+   local _ip_permission_filter="Name=ip-permission.cidr,Values=*$old_cidr*"
+   local _region="$1"
+   local _sgs_found
+   _sgs_found=$(
+      $AWS_EC2_DSG_CMD --region "$_region" --filters "$_ip_permission_filter" --output json |
+         $JQ_CMD -r '.SecurityGroups[] | .GroupId + "|" + .GroupName + "|" + .VpcId')
+   echo "$_sgs_found"
+}
+
+
+# shellcheck disable=SC1004
+get_new_ip_perms () {
+   local _sgid="$1"
+   local _region="$2"
+   local _new_ip_perms
+   _new_ip_perms=$(
+      $AWS_EC2_DSG_CMD --region "$_region" --group-ids "$_sgid" |
+         $JQ_CMD -r '.SecurityGroups[].IpPermissions[] | select(.IpRanges[].CidrIp | contains("'"$old_cidr"'")) | [.] | map(del(.IpRanges,.UserIdGroupPairs))' |
+         sed '/IpProtocol/ a\
+'"$new_ip_range"'' |
+         $JQ_CMD . | tr -d '\n' | sed 's/}\]\[  {/},{/g')
+   $JQ_CMD . <<< "$_new_ip_perms"
+}
+
+
+process_the_sgs () {
+   local _region="$1"
+   local _count=1
+   local _sgid
+   local _line
+   local _new_ip_permissions
+   while read -r _line; do
+      _sgid=${_line%%|*}
+      echo -e "\n------- Security Group [#$_count]: $_sgid -------"
+      _new_ip_permissions=$(get_new_ip_perms "$_sgid" "$_region")
+      echo "$AWS_EC2_ASGI_CMD" "$dryrun" --region "$_region" --group-id "$_sgid" --ip-permissions "$_new_ip_permissions"
+      $AWS_EC2_ASGI_CMD "$dryrun" --region "$_region" --group-id "$_sgid" --ip-permissions "$_new_ip_permissions"
+      ((_count++))
+   done <<< "$sgs_found"
+}
+
 
 # Get the AWS security group names that contain the old CIDR to update
 if [ "$region" == "all" ]; then
-   ALL_REGIONS=$(
+   all_regions=$(
       aws ec2 describe-regions --region us-east-1 |
          $JQ_CMD -r .Regions[].RegionName)
-   for region in $ALL_REGIONS; do
-      $AWS_EC2_DSG_CMD --region "$region" --filters "$ip_permission_filter" --output json | $JQ_CMD -r '.SecurityGroups[] | .GroupId + "|" + .GroupName + "|" + .VpcId' | column -s'|' -t | sed 's/  \([[:alnum:]]\)/ | \1/g;s/$/ | '"$region"'/'
+   for region in $all_regions; do
+      echo -e "\nChecking for security groups in '$region'\nwith ingress rules allowing traffic from '$old_cidr'\n"
+      sgs_found=$(get_list_of_sgs "$region")
+      if [ -n "$sgs_found" ]; then
+         echo -e "\nFound and updating these security groups ($region):\n"
+         { column -s'|' -t | sed 's/  \([[:alnum:]]\)/ | \1/g;s/$/ | '"$region"'/'; } <<< "$sgs_found"
+         process_the_sgs "$region"
+      else
+         echo -e "\nDid NOT find any security groups in ($region)\n"
+      fi
    done
 else
-   echo -e "Found and updating these security groups:\n"
-   sgs_found=$($AWS_EC2_DSG_CMD --region "$region" --filters "$ip_permission_filter" --output json | $JQ_CMD -r '.SecurityGroups[] | .GroupId + "|" + .GroupName + "|" + .VpcId')
-   { column -s'|' -t | sed 's/  \([[:alnum:]]\)/ | \1/g;s/$/ | '"$region"'/'; } <<< "$sgs_found"
-   echo "raw findings:"
-   echo "$sgs_found"
-   count=1
-   while read -r line; do
-      echo "count: $count  --------------"
-      sgid=${line%%|*}
-      echo "sgid: $sgid"
-      echo $AWS_EC2_ASGI_CMD --region "$region" --group-id "$sgid" --ip-permisions "$new_ip_range" --dry-run
-      ((count++))
-   done <<< "$sgs_found"
-
-   # $AWS_EC2_DSG_CMD --region "$region" --filters "$ip_permission_filter" --output json | $JQ_CMD -r '.SecurityGroups[] | .GroupId + "|" + .GroupName + "|" + .VpcId' | column -s'|' -t | sed 's/  \([[:alnum:]]\)/ | \1/g;s/$/ | '"$region"'/'
-   # $AWS_EC2_DSG_CMD --region "$region" --filters "$ip_permission_filter" --output json | $JQ_CMD -r '.SecurityGroups[] | select(.IpPermissions[].IpRanges[].CidrIp=="'"$old_cidr"'").IpPermissions'
-   # $AWS_EC2_DSG_CMD --region "$region" --filters "$ip_permission_filter" --output json | $JQ_CMD -r '.SecurityGroups[] | select(.IpPermissions[].IpRanges[].CidrIp | contains("'"$old_cidr"'")).IpPermissions'
-   # $AWS_EC2_DSG_CMD --region "$region" --filters "$ip_permission_filter" --output json | $JQ_CMD -r '.SecurityGroups[] | select(.IpPermissions[].IpRanges[].CidrIp | contains("'"$old_cidr"'")).IpPermissions | map(del(.IpRanges))'
-   # $AWS_EC2_DSG_CMD --region "$region" --filters "$ip_permission_filter" --output json | $JQ_CMD -r '.SecurityGroups[] | select(.IpPermissions[].IpRanges[].CidrIp | contains("'"$old_cidr"'")).IpPermissions | map(del(.IpRanges))' | sed '/IpProtocol/ a\
-#           '"$new_ip_range"'' | jq .); do
-   ####################
-#  count=1
-#  for i in $($AWS_EC2_DSG_CMD --region "$region" --filters "$ip_permission_filter" --output json | $JQ_CMD -r '.SecurityGroups[] | select(.IpPermissions[].IpRanges[].CidrIp | contains("'"$old_cidr"'")).IpPermissions | map(del(.IpRanges))' | sed '/IpProtocol/ a\
-#           '"$new_ip_range"'' | jq .); do
-#     echo "count: $count"
-#     echo "i: $i"
-#     ((count++))
-#  done
-   ####################
-#  count=1
-#  while read -r line; do
-#     echo "-----------------------------------------------"
-#     echo "count: $count"
-#     echo "line: $line"
-#     ((count++))
-#  done <<< $($AWS_EC2_DSG_CMD --region "$region" --filters "$ip_permission_filter" --output json | $JQ_CMD -r '.SecurityGroups[] | select(.IpPermissions[].IpRanges[].CidrIp | contains("'"$old_cidr"'")).IpPermissions | map(del(.IpRanges))' | sed '/IpProtocol/ a\
-#           '"$new_ip_range"'' | jq . | tr -d '\n')
-#  
-   ####################
-fi
-
-if [ -z "$dryrun" ]; then
-   true
-else
-   false
+   echo -e "\nChecking for security groups in '$region'\nwith ingress rules allowing traffic from '$old_cidr'\n"
+   sgs_found=$(get_list_of_sgs "$region")
+   if [ -n "$sgs_found" ]; then
+      echo -e "\nFound and updating these security groups ($region):\n"
+      { column -s'|' -t | sed 's/  \([[:alnum:]]\)/ | \1/g;s/$/ | '"$region"'/'; } <<< "$sgs_found"
+      process_the_sgs "$region"
+   else
+      echo -e "\nDid NOT find any security groups in ($region)\n"
+   fi
 fi
