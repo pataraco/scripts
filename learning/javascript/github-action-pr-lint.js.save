@@ -1,0 +1,160 @@
+import { GitHub } from "@actions/github/lib/github";
+import * as core from "@actions/core";
+import * as github from "@actions/github";
+
+// To enable core.debug output in action logs,
+// create GitHub Secret: ACTIONS_STEP_DEBUG = true
+
+async function run(): Promise<void> {
+  const githubContext = github.context;
+  const githubToken = core.getInput("github-token");
+  const githubClient = new GitHub(githubToken);
+
+  const pr = githubContext.issue;
+
+  const title: string = githubContext.payload.pull_request?.title ?? "";
+  core.debug(`Pull Request title: ${title}`);
+  const titleRegex: RegExp = new RegExp(core.getInput("pr-title-regex"));
+  core.debug(`Pull Request title Regex: ${titleRegex}`);
+  const regexFailedComment = core
+    .getInput("regex-failed-comment")
+    .replace("%regex%", titleRegex.source);
+  core.debug(`Pull Request title Regex Failed Comment: ${regexFailedComment}`);
+  const regexPassedComment = core
+    .getInput("regex-passed-comment")
+    .replace("%regex%", titleRegex.source);
+  core.debug(`Pull Request title Regex Passed Comment: ${regexPassedComment}`);
+
+  const titleMatchesRegex: boolean = titleRegex.test(title);
+  if (!titleMatchesRegex) {
+    core.debug(`Pull Request title does NOT match the RegEx: ${titleRegex}`);
+    // core.debug(`Using 'core.setFailed'`);
+    // core.setFailed(
+    //   `Pull Request Title does NOT match the RegEx: ${titleRegex}`
+    // );
+    // core.debug(`Using 'core.error'`);
+    // core.error(`Pull Request Title does NOT match the RegEx: ${titleRegex}`);
+    // core.debug(`Using 'core.warning'`);
+    // core.warning(`Pull Request Title does NOT match the RegEx: ${titleRegex}`);
+    core.debug(
+      `Requesting changes to the Pull Request with the failed comment`
+    );
+    githubClient.pulls.createReview({
+      owner: pr.owner,
+      repo: pr.repo,
+      pull_number: pr.number,
+      body: regexFailedComment,
+      event: "REQUEST_CHANGES",
+    });
+    core.debug(`Using 'process.exit(1)'`);
+    process.exit(1);
+    // core.debug(`Using 'throw'`);
+    // throw `Pull Request title does NOT match the RegEx: ${titleRegex}`;
+  } else {
+    core.debug(`Pull Request title DOES match the RegEx: ${titleRegex}`);
+
+    core.debug(`Getting all reviews in the Pull Request`);
+    const reviews = await githubClient.pulls.listReviews({
+      owner: pr.owner,
+      repo: pr.repo,
+      pull_number: pr.number,
+    });
+
+    reviews.data.forEach((review) => {
+      core.debug(
+        `Pull Request Review (ID: ${review.id}) User Login: ${review.user.login}`
+      );
+      if (review.user.login == "github-actions[bot]") {
+        core.debug(
+          `Pull Request Review (ID: ${review.id}) Status: ${review.state}`
+        );
+        if (review.state == "CHANGES_REQUESTED") {
+          core.debug(`Dismissing Pull Request Review (ID: ${review.id})`);
+          githubClient.pulls.dismissReview({
+            owner: pr.owner,
+            repo: pr.repo,
+            pull_number: pr.number,
+            review_id: review.id,
+            message: regexPassedComment,
+          });
+        }
+      }
+    });
+
+    core.debug(`Approving the Pull Request`);
+    githubClient.pulls.createReview({
+      owner: pr.owner,
+      repo: pr.repo,
+      pull_number: pr.number,
+      body: regexPassedComment,
+      event: "APPROVE",
+    });
+  }
+
+  // reviews.data.forEach((review) => {
+  //   core.debug(
+  //     `Pull Request Review (ID: ${review.id}) User Login: ${review.user.login}`
+  //   );
+  //   if (review.user.login == "github-actions[bot]") {
+  //     core.debug(
+  //       `Pull Request Review (ID: ${review.id}) Status: ${review.state}`
+  //     );
+  //     // possible values: APPROVED, CHANGES_REQUESTED, DISMISSED, PENDING
+  //     if (review.state == "PENDING") {
+  //       githubClient.pulls.deletePendingReview({
+  //         owner: pr.owner,
+  //         repo: pr.repo,
+  //         pull_number: pr.number,
+  //         review_id: review.id,
+  //       });
+  //     }
+  //     githubClient.pulls.updateReview({
+  //       owner: pr.owner,
+  //       repo: pr.repo,
+  //       pull_number: pr.number,
+  //       review_id: review.id,
+  //       body: regexPassedComment,
+  //     });
+  //   }
+  // });
+
+  // core.debug(`Attempting to delet the PR's comments`);
+  // const comments = await githubClient.pulls.listComments({
+  //   owner: pr.owner,
+  //   repo: pr.repo,
+  //   pull_number: pr.number,
+  // });
+  // if (comments) {
+  //   core.debug(`Found these PR comments: ${comments}`);
+  //   core.debug(`         With this data: ${comments.data}`);
+  //   core.debug(`             and status: ${comments.status}`);
+  // } else {
+  //   core.debug(`Did NOT find PR comments`);
+  // }
+  // comments.data.forEach((comment) => {
+  //   core.debug(
+  //     `Pull Reqest Comment (ID: ${comment.id}) User Login: ${comment.user.login}`
+  //   );
+  //   core.debug(
+  //     `Pull Reqest Comment (ID: ${comment.id}) Body: ${comment.body}`
+  //   );
+  //   if (comment.user.login == "github-actions[bot]") {
+  //     githubClient.pulls.deleteComment({
+  //       owner: pr.owner,
+  //       repo: pr.repo,
+  //       comment_id: comment.id,
+  //     });
+  //   }
+  // });
+}
+
+run().catch((error) => {
+  // core.debug(`Error Caught - Using 'core.setFailed'`);
+  // core.setFailed(`Action failed with error ${error}`);
+  core.debug(`Error caught - Using 'core.error'`);
+  core.error(`Error: ${error}`);
+  core.debug(`Error Caught - Using 'process.exit(1)'`);
+  process.exit(1);
+  // core.debug(`Error Caught - Using 'throw'`);
+  // throw { message: `Error Caught: ${error}` };
+});
