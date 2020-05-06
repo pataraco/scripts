@@ -1,4 +1,4 @@
-'use strict'  // forces strict type setting
+'use strict';  // forces strict type setting
 
 console.log('Hello World!');
 
@@ -12,6 +12,53 @@ console.log(msg);
 console.log('Multiline\nmessage!');
 console.log(`Multiline
 message!`);
+
+// See expanded object info about a function
+function example() {
+  console.log('Hello World!');
+}
+console.dir(example);
+
+// can assign functions as values in objects
+const person = {
+  name: 'John',
+  greet: function () {
+    console.log('Hello there!');
+  }
+};
+person.greet();
+
+// anonymous functions
+// (note: for debugging purposes, better to name them)
+// as a variable/const
+const greet = function () {
+  console.log('Hello there!');
+};
+greet();
+
+// as an argument
+function someFunction(param1, param2) {
+  console.log(`param1: ${param1}`);
+  param2();
+}
+someFunction('Arg 1', function () {
+  console.log('This is an example');
+});
+
+// arrow functions
+const add1 = (a, b) => a + b;
+const add2 = (a, b) => {
+  return a + b;
+};
+const square = x => x * x;
+console.log(add1(2, 3));
+console.log(add2(4, 5));
+console.log(square(6));
+
+// default values function params
+function anotherFunc(param1, param2 = 'two', param3 = param1 === 'one' ? 'three' : 'four') {
+  console.log(`param1: ${param1}, param2: ${param2},  param3: ${param3}`);
+}
 
 // Boolean Coercion
 let userInput;
@@ -32,7 +79,7 @@ name = userInput && 'Input Given';     // 'Input Given'
 
 
 // Ternary
-isValidInput = userInput ? true : false
+isValidInput = userInput ? true : false;
 
 
 var z;
