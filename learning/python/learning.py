@@ -141,6 +141,9 @@ print("Let's not go to {}. 'Tis a silly {}.".format(str1, str2))
 print("Let's not go to {p}. 'Tis a silly {n}.".format(n=str2, p=str1))
 print("Let's not go to {str1}. 'Tis a silly {str2}.".format(**locals()))
 print(f"Let's not go to {str1}. 'Tis a silly {str2}.")       # Python 3.x
+flt1 = 234.125269
+print("Here is flt1: centered '{:^10.2f}'".format(flt1))
+print(f"Here is flt1: left justified & filled '{flt1:-<10.2f}'")
 ### strings and string formatting (end) ###
 
 exit("all done")  # EXIT - STOP TESTING!!!
