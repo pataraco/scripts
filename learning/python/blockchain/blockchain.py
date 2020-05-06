@@ -69,11 +69,11 @@ def get_balance(participant):
     open_deductions = [tx["amount"] for tx in open_txs if tx["sender"] == participant]
     open_additions = [tx["amount"] for tx in open_txs if tx["recipient"] == participant]
     print(
-        f"participant: {participant}, deductions: {deductions}, additions: {additions}"
+        f"debug: participant: {participant}, deductions: {deductions} (open: {open_deductions}), additions: {additions} (open: {open_additions})"
     )
-    print(
-        f"participant: {participant}, open deductions: {open_deductions}, open additions: {open_additions}"
-    )
+    # print(
+    #     f"   participant: {participant:20}, open deductions: {open_deductions}, open additions: {open_additions}"
+    # )
     return sum(additions) + sum(open_additions) - sum(deductions) - sum(open_deductions)
     # deduction_amts = [
     #     [tx["amount"] for tx in block["transactions"] if tx["sender"] == participant]
@@ -203,7 +203,9 @@ while more_input:
     elif usr_choice == "B":
         for participant in participants:
             # print(f"{participant}:", get_balance(participant))
-            print(f"{participant}: {get_balance(participant)}")
+            print(
+                f"   Balance - Owner: {participant:>15} [{get_balance(participant):10.2f}]"
+            )
     elif usr_choice == "C":
         if len(blockchain) > 0:
             blockchain[0] = BOGUS_BLOCK
