@@ -1,27 +1,14 @@
-from collections import OrderedDict
-
-import hash_utils
-
 # initialize/define globals
 # constants
 MINING_REWARD = 10
-POW_DIGITS = 3  # number of digits for Proof of Work (starting at 0)
-POW_PATTERN = "abc"  # pattern to match for Proof of Work
 GENESIS_BLOCK = {
-    "prev_block_hash": "",
+    "previous_hash": "",
     "index": 0,
     "transactions": [],
-    "proof": POW_DIGITS,
 }
 OWNER = "PAR"
-# BOGUS_TX = {"sender": "Someone", "recipient": OWNER, "amount": 100.0}
-BOGUS_TX = OrderedDict([("sender", "Someone"), ("recipient", OWNER), ("amount", 100.0)])
-BOGUS_BLOCK = {
-    "prev_block_hash": "",
-    "index": 0,
-    "transactions": [BOGUS_TX],
-    "proof": POW_DIGITS,
-}
+BOGUS_TX = {"sender": "Someone", "recipient": OWNER, "amount": 100.0}
+BOGUS_BLOCK = {"previous_hash": "", "index": 0, "transactions": [BOGUS_TX]}
 # variables
 blockchain = [GENESIS_BLOCK]
 open_txs = []
@@ -45,8 +32,7 @@ def add_tx(recipient, sender=OWNER, amount=1.0):
           <recipient> The recipient of the coins.
           <amount> The amount of coins transferred (default: 1.0).
     """
-    # tx = {"sender": sender, "recipient": recipient, "amount": amount}
-    tx = OrderedDict([("sender", sender), ("recipient", recipient), ("amount", amount)])
+    tx = {"sender": sender, "recipient": recipient, "amount": amount}
     if valid_tx(tx):
         open_txs.append(tx)
         participants.add(sender)
@@ -83,9 +69,7 @@ def get_balance(participant):
     open_deductions = [tx["amount"] for tx in open_txs if tx["sender"] == participant]
     open_additions = [tx["amount"] for tx in open_txs if tx["recipient"] == participant]
     print(
-        f"debug: participant: {participant},",
-        f"deductions: {deductions} (open: {open_deductions}),",
-        f"additions: {additions} (open: {open_additions})",
+        f"debug: participant: {participant}, deductions: {deductions} (open: {open_deductions}), additions: {additions} (open: {open_additions})"
     )
     # print(
     #     f"   participant: {participant:20}, open deductions: {open_deductions}, open additions: {open_additions}"
@@ -111,50 +95,30 @@ def valid_tx(tx):
     return sender_bal >= tx["amount"]
 
 
-def valid_proof(transactions, last_block_hash, proof):
-    guess_str = str(transactions) + str(last_block_hash) + str(proof)
-    guess_str_encoded = guess_str.encode()
-    # guess_hash = hashlib.sha256(guess_str_encoded).hexdigest()
-    guess_hash = hash_utils.hash_string_256(guess_str_encoded)
-    print(f"debug: guess_str ({guess_str}) and guess_hash ({guess_hash})")
-    return guess_hash[0:POW_DIGITS] == POW_PATTERN
-
-
-def proof_of_work(transactions, last_block_hash):
-    proof = 0
-    while not valid_proof(transactions, last_block_hash, proof):
-        proof += 1
-    print(
-        f"[debug]: Proof of Work: found the proof ({proof}) that generated a",
-        f"hash with the first {POW_DIGITS} digits matching the pattern",
-        f"'{POW_PATTERN}'",
-    )
-    return proof
-
-
 def get_user_choice():
     """ Gets and returns user input (user choice) from the user. """
     return input("Please enter choice: ").upper()
 
 
+def generate_hash(block):
+    """ Generates hash of a block in the blockchain. """
+    # return '-'.join([str(block[key]) for key in block])
+    return hash(str(block))
+
+
 def mine_block(open_txs):
     """ Adds a block of current transactions to the blockchain. """
     # reward the miner
-    # reward_tx = {"sender": "MINING", "recipient": OWNER, "amount": MINING_REWARD}
-    reward_tx = OrderedDict(
-        [("sender", "MINING"), ("recipient", OWNER), ("amount", MINING_REWARD)]
-    )
+    reward_tx = {"sender": "MINING", "recipient": OWNER, "amount": MINING_REWARD}
     new_txs = open_txs[:]  # make a copy in order to preserve open_txs
     new_txs.append(reward_tx)
     # add the current transactions
     last_block = blockchain[-1]
-    last_block_hash = hash_utils.generate_hash(last_block)
-    proof = proof_of_work(open_txs, last_block_hash)
+    last_block_hash = generate_hash(last_block)
     block = {
-        "prev_block_hash": last_block_hash,
+        "previous_hash": last_block_hash,
         "index": len(blockchain),
         "transactions": new_txs,
-        "proof": proof,
     }
     blockchain.append(block)
     return True
@@ -181,66 +145,36 @@ def validate_blockchain(blockchain):
         if i == 0:
             continue
         else:
-            prev_block = blockchain[i - 1]
-            prev_block_hash = hash_utils.generate_hash(prev_block)
-            print(f"[debug]: Comparing current block[{i}] ({block})")
-            print(f"[debug]:      and previous block[{i-1}] ({prev_block})")
+            previous_block_hash = generate_hash(blockchain[i - 1])
             print(
-                f"[debug]: Current block[prev_block_hash] == prev_block_hash",
-                f"({block['prev_block_hash']} == {prev_block_hash})? ",
+                f"  Comparing block[{i}] ({block})", f"hash ({block['previous_hash']})",
+            )
+            print(
+                f"    and previous block[{i-1}] ({blockchain[i-1]})",
+                f"hash ({previous_block_hash})... ",
                 end="",
             )
-            if block["prev_block_hash"] == prev_block_hash:
-                print("Match!")
+            if block["previous_hash"] == previous_block_hash:
+                print("match")
             else:
-                print("MIS-MATCH!")
-                is_valid = False
-            print(f"[debug]: Verifying proof of block[{i}] ({block})")
-            print(
-                f"[debug]:   Comparing first {POW_DIGITS} digits",
-                f"to match '{POW_PATTERN}' in the hash created from:",
-            )
-            transactions_without_mining_reward = block["transactions"][:-1]
-            print(
-                f"[debug]:   Transactions ({transactions_without_mining_reward}) last",
-                f"block hash ({block['prev_block_hash']}) and proof",
-                f"({block['proof']})",
-            )
-            if valid_proof(
-                transactions_without_mining_reward,
-                block["prev_block_hash"],
-                block["proof"],
-            ):
-                print("[debug]:   Proof Succeeded!")
-            else:
-                print("[debug]:   Proof FAILED")
+                print("mis-match")
                 is_valid = False
     return is_valid
-
-    # print(
-    #     f"[debug]: Comparing block[{i}] ({block})",
-    #     f"hash ({block['prev_block_hash']})",
-    # )
-    # print(
-    #     f"[debug]:   and previous block[{i-1}] ({blockchain[i-1]})",
-    #     f"hash ({prev_block_hash})... ",
-    #     end="",
-    # )
     # for i in range(len(blockchain)):
     #     if i == 0:
     #         continue
     #     else:
-    #         prev_block_hash = hash_utils.generate_hash(blockchain[i - 1])
+    #         previous_block_hash = generate_hash(blockchain[i - 1])
     #         print(
     #             f"  Comparing block[{i}] ({blockchain[i]})",
-    #             f"hash ({blockchain[i]['prev_block_hash']})",
+    #             f"hash ({blockchain[i]['previous_hash']})",
     #         )
     #         print(
     #             f"    and previous block[{i-1}] ({blockchain[i-1]})",
-    #             f"hash ({prev_block_hash})... ",
+    #             f"hash ({previous_block_hash})... ",
     #             end="",
     #         )
-    #         if blockchain[i]["prev_block_hash"] == previous_block_hash:
+    #         if blockchain[i]["previous_hash"] == previous_block_hash:
     #             print("match")
     #         else:
     #             print("mis-match")
@@ -265,7 +199,7 @@ while more_input:
             print("Transaction succeded!")
         else:
             print("Transaction failed!")
-        print(f"[debug]: All open transactions:\n{open_txs}")
+        print(f"All open transactions:\n{open_txs}")
     elif usr_choice == "B":
         for participant in participants:
             # print(f"{participant}:", get_balance(participant))
@@ -273,8 +207,8 @@ while more_input:
                 f"   Balance - Owner: {participant:>15} [{get_balance(participant):10.2f}]"
             )
     elif usr_choice == "C":
-        if len(blockchain) > 1:
-            blockchain[1] = BOGUS_BLOCK
+        if len(blockchain) > 0:
+            blockchain[0] = BOGUS_BLOCK
     elif usr_choice == "M":
         if mine_block(open_txs):
             open_txs = []
