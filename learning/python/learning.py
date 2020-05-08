@@ -12,6 +12,18 @@ from math import *
 
 variable = "value"
 
+### functionaarguments (begin) ###
+def unlimited_args(*args, **kwargs):
+    print(f'args: {args}')
+    print(f'kwargs: {kwargs}')
+
+# unpack list (of args) -> into a tuple
+unlimited_args(arg1, arg2, arg3)                     # (arg1, arg2, arg3)
+unlimited_args(*[arg3, arg5, arg6])                  # (arg4, arg5, arg6)
+# unpack dict (of args) -> into a dict
+unlimited_args(a='aye', b='bee', c='sea')            # {'a':'aye', 'b':'bee', 'c':'sea'}
+unlimited_args(**{'a':'aye', 'b':'bee', 'c':'sea'})  # {'a':'aye', 'b':'bee', 'c':'sea'}
+### functionaarguments (end) ###
 
 def function():
     global variable
@@ -153,10 +165,10 @@ exit("all done")  # EXIT - STOP TESTING!!!
 # from string import Template
 t = Template("Let's not go to $p. 'Tis a silly $n.")
 t.substitute(p=str1, n=str2)
-name = raw_input("What is your name? ")
+name = input("What is your name? ")
 print("nice to meet you %s!" % name)
 print("hi %s, nice to meet you %s!" % (name, name))
-original = raw_input("Enter a word: ")
+original = input("Enter a word: ")
 if len(original) > 0 and original.isalpha():
     print("thanks for the word: %s" % original)
     print(original)
@@ -203,6 +215,7 @@ animals.insert(1, "dog")
 print(animals)  # ["ant", "dog", "bat", "cat"]
 
 # lists
+# TODO: learn about reduce()
 LIST = [1, 2, 5, 3, 4, 8]
 for var in LIST:
     print("%s * 2 = %s" % (var, var * 2))
@@ -278,13 +291,8 @@ print("hello", end="")
 print("world!")
 ### print with no CR (newline) (end) ###
 
-
 #### list/dict/set comprehensions (begin) ###
 even_squares = [x ** 2 for x in range(1, 11) if (x % 2) == 0]
-my_list = range(16)
-print(filter(lambda x: x % 3 == 0, my_list))
-languages = ["HTML", "JavaScript", "Python", "Ruby"]
-print(filter(lambda w: w == "Python", languages))
 ###
 my_list = [i ** 2 for i in range(1, 11)]
 # --- --- ---
@@ -337,9 +345,24 @@ if not textfile.closed:
     textfile.close()
 
 
-###################
-elems = int(raw_input())
-array = map(int, raw_input().split())
+### map(function, arg) (begin) ###
+def double_it(x):
+    return x * 2
+elems = int(input())
+array = map(int, input().split())
+int_list = [1, 2, 3, 4]
+str_list = list(map(str, int_list))
+dbl_list = list(map(double_it, int_list))
+### map(function, arg) (begin) ###
+
+#### lambdas (begin) ###
+# syntax; lambda arg1 [, arg2...]: function
+my_list = range(16)
+print(filter(lambda x: x % 3 == 0, my_list))
+languages = ["HTML", "JavaScript", "Python", "Ruby"]
+print(filter(lambda w: w == "Python", languages))
+sqr_list = list(map(lambda x: x**2, int_list))
+#### lambdas (end) ###
 
 max_key = 0
 max_val = 0
