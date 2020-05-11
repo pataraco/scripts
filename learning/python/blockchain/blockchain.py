@@ -4,6 +4,7 @@ import hash_utils
 
 # initialize/define globals
 # constants
+SAVE_FILE = "blockchain.txt"
 MINING_REWARD = 10
 POW_DIGITS = 3  # number of digits for Proof of Work (starting at 0)
 POW_PATTERN = "abc"  # pattern to match for Proof of Work
@@ -22,10 +23,20 @@ BOGUS_BLOCK = {
     "transactions": [BOGUS_TX],
     "proof": POW_DIGITS,
 }
+# ASCII escape sequences
+D2E = "\x1b[0K"  # delete to EOL
 # variables
 blockchain = [GENESIS_BLOCK]
 open_txs = []
 participants = {OWNER}
+
+
+def save_data():
+    """ Saves blockchain and opentransactions to a file. """
+    with open(SAVE_FILE, mode="w") as f:
+        f.write(str(blockchain))
+        f.write("\n")
+        f.write(str(open_txs))
 
 
 def get_last_blockchain_val():
@@ -51,6 +62,7 @@ def add_tx(recipient, sender=OWNER, amount=1.0):
         open_txs.append(tx)
         participants.add(sender)
         participants.add(recipient)
+        save_data()
         return True
     return False
 
@@ -87,10 +99,11 @@ def get_balance(participant):
         f"deductions: {deductions} (open: {open_deductions}),",
         f"additions: {additions} (open: {open_additions})",
     )
+    return sum(additions) + sum(open_additions) - sum(deductions) - sum(open_deductions)
+
     # print(
     #     f"   participant: {participant:20}, open deductions: {open_deductions}, open additions: {open_additions}"
     # )
-    return sum(additions) + sum(open_additions) - sum(deductions) - sum(open_deductions)
     # deduction_amts = [
     #     [tx["amount"] for tx in block["transactions"] if tx["sender"] == participant]
     #     for block in blockchain
@@ -116,7 +129,7 @@ def valid_proof(transactions, last_block_hash, proof):
     guess_str_encoded = guess_str.encode()
     # guess_hash = hashlib.sha256(guess_str_encoded).hexdigest()
     guess_hash = hash_utils.hash_string_256(guess_str_encoded)
-    print(f"debug: guess_str ({guess_str}) and guess_hash ({guess_hash})")
+    print(f"debug: guess_str ({guess_str}) and guess_hash ({guess_hash})", end="\r")
     return guess_hash[0:POW_DIGITS] == POW_PATTERN
 
 
@@ -124,6 +137,7 @@ def proof_of_work(transactions, last_block_hash):
     proof = 0
     while not valid_proof(transactions, last_block_hash, proof):
         proof += 1
+    print()
     print(
         f"[debug]: Proof of Work: found the proof ({proof}) that generated a",
         f"hash with the first {POW_DIGITS} digits matching the pattern",
@@ -157,6 +171,7 @@ def mine_block(open_txs):
         "proof": proof,
     }
     blockchain.append(block)
+    save_data()
     return True
 
 
@@ -211,6 +226,7 @@ def validate_blockchain(blockchain):
                 block["prev_block_hash"],
                 block["proof"],
             ):
+                print()
                 print("[debug]:   Proof Succeeded!")
             else:
                 print("[debug]:   Proof FAILED")

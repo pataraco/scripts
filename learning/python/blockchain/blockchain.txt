@@ -1,0 +1,2 @@
+[{'prev_block_hash': '', 'index': 0, 'transactions': [], 'proof': 3}, {'prev_block_hash': 'ec7bed6f5572c4fc9ce65e63922ae61ab95be3b0201d9f34ed22a460a9411987', 'index': 1, 'transactions': [OrderedDict([('sender', 'MINING'), ('recipient', 'PAR'), ('amount', 10)])], 'proof': 6744}]
+[OrderedDict([('sender', 'PAR'), ('recipient', 'GAR'), ('amount', 3.4)]), OrderedDict([('sender', 'PAR'), ('recipient', 'ATR'), ('amount', 3.2)])]
