@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import json
 
 import hash_utils
 
@@ -7,6 +8,8 @@ import hash_utils
 SAVE_FILE = "blockchain.txt"
 MINING_REWARD = 10
 POW_DIGITS = 3  # number of digits for Proof of Work (starting at 0)
+POW_TEMPLATE = "{t}+{h}+<{p}>"  # Proof of Work string template
+# POW string used to generate POW hash  = transactions+last_block_hash+<proof>
 POW_PATTERN = "abc"  # pattern to match for Proof of Work
 GENESIS_BLOCK = {
     "prev_block_hash": "",
@@ -31,12 +34,58 @@ open_txs = []
 participants = {OWNER}
 
 
+def load_data():
+    """ Loads blockchain and open transactions data from a file. """
+    global blockchain
+    global open_txs
+    with open(SAVE_FILE, mode="r") as f:
+        line = f.readline()
+        if line:
+            blockchain = json.loads(line)
+            print("[debug]: loaded the blockchain:")
+            print(f"[debug]: {blockchain}")
+        line = f.readline()
+        if line:
+            open_txs = json.loads(line)
+            print("[debug]: loaded the open transactions:")
+            print(f"[debug]: {open_txs}")
+    # process block and convert transactions to OrderedDicts
+    # and generate list of participants
+    for block in blockchain:
+        block["transactions"] = [
+            OrderedDict(
+                [
+                    ("sender", tx["sender"]),
+                    ("recipient", tx["recipient"]),
+                    ("amount", tx["amount"]),
+                ]
+            )
+            for tx in block["transactions"]
+        ]
+        for transaction in block["transactions"]:
+            participants.add(transaction["sender"])
+            participants.add(transaction["recipient"])
+    open_txs = [
+        OrderedDict(
+            [
+                ("sender", tx["sender"]),
+                ("recipient", tx["recipient"]),
+                ("amount", tx["amount"]),
+            ]
+        )
+        for tx in open_txs
+    ]
+    for transaction in open_txs:
+        participants.add(transaction["sender"])
+        participants.add(transaction["recipient"])
+
+
 def save_data():
-    """ Saves blockchain and opentransactions to a file. """
+    """ Saves blockchain and open transactions date to a file. """
     with open(SAVE_FILE, mode="w") as f:
-        f.write(str(blockchain))
+        f.write(json.dumps(blockchain))
         f.write("\n")
-        f.write(str(open_txs))
+        f.write(json.dumps(open_txs))
 
 
 def get_last_blockchain_val():
@@ -95,7 +144,7 @@ def get_balance(participant):
     open_deductions = [tx["amount"] for tx in open_txs if tx["sender"] == participant]
     open_additions = [tx["amount"] for tx in open_txs if tx["recipient"] == participant]
     print(
-        f"debug: participant: {participant},",
+        f"[debug]: participant: {participant},",
         f"deductions: {deductions} (open: {open_deductions}),",
         f"additions: {additions} (open: {open_additions})",
     )
@@ -124,12 +173,20 @@ def valid_tx(tx):
     return sender_bal >= tx["amount"]
 
 
+def generate_guess_string(transactions, last_block_hash, proof):
+    return POW_TEMPLATE.format(
+        t=str(transactions), h=str(last_block_hash), p=str(proof)
+    )
+
+
 def valid_proof(transactions, last_block_hash, proof):
-    guess_str = str(transactions) + str(last_block_hash) + str(proof)
+    # guess_str = str(transactions) + str(last_block_hash) + str(proof)
+    guess_str = generate_guess_string(transactions, last_block_hash, proof)
     guess_str_encoded = guess_str.encode()
     # guess_hash = hashlib.sha256(guess_str_encoded).hexdigest()
     guess_hash = hash_utils.hash_string_256(guess_str_encoded)
-    print(f"debug: guess_str ({guess_str}) and guess_hash ({guess_hash})", end="\r")
+    # print(f"[debug]: guess_str ({guess_str}) and guess_hash ({guess_hash})", end="\r")
+    print(f"[debug]: guess_hash ({guess_hash})", end="\r")
     return guess_hash[0:POW_DIGITS] == POW_PATTERN
 
 
@@ -143,6 +200,8 @@ def proof_of_work(transactions, last_block_hash):
         f"hash with the first {POW_DIGITS} digits matching the pattern",
         f"'{POW_PATTERN}'",
     )
+    guess_str = generate_guess_string(transactions, last_block_hash, proof)
+    print(f"[debug]: guess_str: ({guess_str})")
     return proof
 
 
@@ -171,7 +230,6 @@ def mine_block(open_txs):
         "proof": proof,
     }
     blockchain.append(block)
-    save_data()
     return True
 
 
@@ -226,11 +284,26 @@ def validate_blockchain(blockchain):
                 block["prev_block_hash"],
                 block["proof"],
             ):
-                print()
+                proof_succeeded = True
+            else:
+                proof_succeeded = False
+                is_valid = False
+            print()
+            # guess_str = (
+            #     str(transactions_without_mining_reward)
+            #     + str(block["prev_block_hash"])
+            #     + str(block["proof"])
+            # )
+            guess_str = generate_guess_string(
+                transactions_without_mining_reward,
+                block["prev_block_hash"],
+                block["proof"],
+            )
+            print(f"[debug]: guess_str: ({guess_str})")
+            if proof_succeeded:
                 print("[debug]:   Proof Succeeded!")
             else:
                 print("[debug]:   Proof FAILED")
-                is_valid = False
     return is_valid
 
     # print(
@@ -263,6 +336,10 @@ def validate_blockchain(blockchain):
     #             is_valid = False
 
 
+# first load any existing data
+load_data()
+
+# display menu and process user requests
 more_input = True
 while more_input:
     print("Please choose")
@@ -294,6 +371,7 @@ while more_input:
     elif usr_choice == "M":
         if mine_block(open_txs):
             open_txs = []
+            save_data()
     elif usr_choice == "P":
         print_out_blockchain(blockchain)
     elif usr_choice == "S":
