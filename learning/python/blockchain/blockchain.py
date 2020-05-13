@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import json
 import pickle
+import sys
 
 import hash_utils
 
@@ -44,22 +45,34 @@ def load_data():
     """ Loads blockchain and open transactions data from a file. """
     global blockchain
     global open_txs
+    global participants
 
     # # loading data from a "text" file (begin)
-    # with open(SAVE_FILE, mode="r") as f:
-    #     line = f.readline()
-    #     if line:
-    #         blockchain = json.loads(line)
-    #         print("[debug]: loaded the blockchain:")
-    #         print(f"[debug]: {blockchain}")
-    #     line = f.readline()
-    #     if line:
-    #         open_txs = json.loads(line)
-    #         print("[debug]: loaded the open transactions:")
-    #         print(f"[debug]: {open_txs}")
-    # # process block and convert transactions to OrderedDicts
-    # for block in blockchain:
-    #     block["transactions"] = [
+    # try:
+    #     with open(SAVE_FILE, mode="r") as f:
+    #         line = f.readline()
+    #         if line:
+    #             blockchain = json.loads(line)
+    #             print("[debug]: loaded the blockchain:")
+    #             print(f"[debug]: {blockchain}")
+    #         line = f.readline()
+    #         if line:
+    #             open_txs = json.loads(line)
+    #             print("[debug]: loaded the open transactions:")
+    #             print(f"[debug]: {open_txs}")
+    #     # process block and convert transactions to OrderedDicts
+    #     for block in blockchain:
+    #         block["transactions"] = [
+    #             OrderedDict(
+    #                 [
+    #                     ("sender", tx["sender"]),
+    #                     ("recipient", tx["recipient"]),
+    #                     ("amount", tx["amount"]),
+    #                 ]
+    #             )
+    #             for tx in block["transactions"]
+    #         ]
+    #     open_txs = [
     #         OrderedDict(
     #             [
     #                 ("sender", tx["sender"]),
@@ -67,33 +80,40 @@ def load_data():
     #                 ("amount", tx["amount"]),
     #             ]
     #         )
-    #         for tx in block["transactions"]
+    #         for tx in open_txs
     #     ]
-    # open_txs = [
-    #     OrderedDict(
-    #         [
-    #             ("sender", tx["sender"]),
-    #             ("recipient", tx["recipient"]),
-    #             ("amount", tx["amount"]),
-    #         ]
-    #     )
-    #     for tx in open_txs
-    # ]
+    # except (IOError, IndexError) as e:
+    #     print(f"[debug]: IOError/IndexError: {e}")
+    #     print(f"IOError/IndexError: trying to read file: {SAVE_FILE}")
+    #     print(f"[debug]: Using genesis block: {GENESIS_BLOCK}")
+    # except Exception as e:
+    #     print(f"[debug]: Exception (Catch All): {e}")
+    #     print(f"[debug]: Error [{e.__class__.__name__}] ({e.__class__})")
+    #     sys.exit(f"exit: error: {e}: not able to load data")
     # # loading data from a "text" file (end)
 
     # loading data from a "data" file (begin)
-    with open(SAVE_FILE, mode="rb") as f:
-        file_content = f.read()
-        if file_content:
-            data = pickle.loads(file_content)
-            blockchain = data.get("blockchain")
-            if blockchain:
-                print("[debug]: loaded the blockchain:")
-                print(f"[debug]: {blockchain}")
-            open_txs = data.get("open_txs")
-            if open_txs:
-                print("[debug]: loaded the open transactions:")
-                print(f"[debug]: {open_txs}")
+    try:
+        with open(SAVE_FILE, mode="rb") as f:
+            file_content = f.read()
+            if file_content:
+                data = pickle.loads(file_content)
+                blockchain = data.get("blockchain")
+                if blockchain:
+                    print("[debug]: loaded the blockchain:")
+                    print(f"[debug]: {blockchain}")
+                open_txs = data.get("open_txs")
+                if open_txs:
+                    print("[debug]: loaded the open transactions:")
+                    print(f"[debug]: {open_txs}")
+    except (IOError, IndexError) as e:
+        print(f"[debug]: IOError/IndexError: {e}")
+        print(f"IOError/IndexError: trying to read file: {SAVE_FILE}")
+        print(f"[debug]: Using genesis block: {GENESIS_BLOCK}")
+    except Exception as e:
+        print(f"[debug]: Exception (Catch All): {e}")
+        print(f"[debug]: Error [{e.__class__.__name__}] ({e.__class__})")
+        sys.exit(f"exit: error: {e}: not able to load data")
     # loading data from a "data" file (end)
 
     # update/create/load the participants list
@@ -110,16 +130,38 @@ def save_data():
     """ Saves blockchain and open transactions date to a file. """
 
     # # saving data to a "text" file (begin)
-    # with open(SAVE_FILE, mode="w") as f:
-    #     f.write(json.dumps(blockchain))
-    #     f.write("\n")
-    #     f.write(json.dumps(open_txs))
+    # try:
+    #     with open(SAVE_FILE, mode="w") as f:
+    #         f.write(json.dumps(blockchain))
+    #         f.write("\n")
+    #         f.write(json.dumps(open_txs))
+    # except IOError as e:
+    #     print(f"[debug]: IOError: {e}")
+    #     print(f"IOError: trying to save file: {SAVE_FILE}")
+    # except Exception as e:
+    #     print(f"[debug]: Exception (Catch All): {e}")
+    #     print(f"[debug]: Error [{e.__class__.__name__}] ({e.__class__})")
+    #     sys.exit(f"exit: error: {e}: not able to save data")
     # # saving data to a "text" file (end)
 
     # saving data to a "data" file (begin)
-    with open(SAVE_FILE, mode="wb") as f:
-        data = {"blockchain": blockchain, "open_txs": open_txs}
-        f.write(pickle.dumps(data))
+    try:
+        with open(SAVE_FILE, mode="wb") as f:
+            data = {"blockchain": blockchain, "open_txs": open_txs}
+            f.write(pickle.dumps(data))
+    except IOError as e:
+        print(f"[debug]: IOError: {e}")
+        print(f"IOError: trying to save file: {SAVE_FILE}")
+    except Exception as e:
+        print(f"[debug]: Exception (Catch All): {e}")
+        print(f"[debug]: Error [{e.__class__.__name__}] ({e.__class__})")
+        sys.exit(f"exit: error: {e}: not able to save data")
+    else:
+        print(f"[debug]: successfully to saved data to file: {SAVE_FILE}")
+    finally:
+        print(f"[debug]: here's the data that couldn't be saved")
+        print(f"[debug]: {blockchain}")
+        print(f"[debug]: {open_txs}")
     # saving data to a "data" file (end)
 
 
