@@ -1,11 +1,13 @@
 from collections import OrderedDict
 import json
+import pickle
 
 import hash_utils
 
 # initialize/define globals
 # constants
-SAVE_FILE = "blockchain.txt"
+SAVE_FILE = "blockchain.data"  # for binary format
+# SAVE_FILE = "blockchain.txt"  # for text format
 MINING_REWARD = 10
 POW_DIGITS = 3  # number of digits for Proof of Work (starting at 0)
 POW_TEMPLATE = "{t}+{h}+<{p}>"  # Proof of Work string template
@@ -28,6 +30,10 @@ BOGUS_BLOCK = {
 }
 # ASCII escape sequences
 D2E = "\x1b[0K"  # delete to EOL
+GRN = "\x1b[1;32m"  # green, bold
+NRM = "\x1b[m"  # normal
+RED = "\x1b[1;31m"  # red, bold
+
 # variables
 blockchain = [GENESIS_BLOCK]
 open_txs = []
@@ -38,43 +44,63 @@ def load_data():
     """ Loads blockchain and open transactions data from a file. """
     global blockchain
     global open_txs
-    with open(SAVE_FILE, mode="r") as f:
-        line = f.readline()
-        if line:
-            blockchain = json.loads(line)
-            print("[debug]: loaded the blockchain:")
-            print(f"[debug]: {blockchain}")
-        line = f.readline()
-        if line:
-            open_txs = json.loads(line)
-            print("[debug]: loaded the open transactions:")
-            print(f"[debug]: {open_txs}")
-    # process block and convert transactions to OrderedDicts
-    # and generate list of participants
+
+    # # loading data from a "text" file (begin)
+    # with open(SAVE_FILE, mode="r") as f:
+    #     line = f.readline()
+    #     if line:
+    #         blockchain = json.loads(line)
+    #         print("[debug]: loaded the blockchain:")
+    #         print(f"[debug]: {blockchain}")
+    #     line = f.readline()
+    #     if line:
+    #         open_txs = json.loads(line)
+    #         print("[debug]: loaded the open transactions:")
+    #         print(f"[debug]: {open_txs}")
+    # # process block and convert transactions to OrderedDicts
+    # for block in blockchain:
+    #     block["transactions"] = [
+    #         OrderedDict(
+    #             [
+    #                 ("sender", tx["sender"]),
+    #                 ("recipient", tx["recipient"]),
+    #                 ("amount", tx["amount"]),
+    #             ]
+    #         )
+    #         for tx in block["transactions"]
+    #     ]
+    # open_txs = [
+    #     OrderedDict(
+    #         [
+    #             ("sender", tx["sender"]),
+    #             ("recipient", tx["recipient"]),
+    #             ("amount", tx["amount"]),
+    #         ]
+    #     )
+    #     for tx in open_txs
+    # ]
+    # # loading data from a "text" file (end)
+
+    # loading data from a "data" file (begin)
+    with open(SAVE_FILE, mode="rb") as f:
+        file_content = f.read()
+        if file_content:
+            data = pickle.loads(file_content)
+            blockchain = data.get("blockchain")
+            if blockchain:
+                print("[debug]: loaded the blockchain:")
+                print(f"[debug]: {blockchain}")
+            open_txs = data.get("open_txs")
+            if open_txs:
+                print("[debug]: loaded the open transactions:")
+                print(f"[debug]: {open_txs}")
+    # loading data from a "data" file (end)
+
+    # update/create/load the participants list
     for block in blockchain:
-        block["transactions"] = [
-            OrderedDict(
-                [
-                    ("sender", tx["sender"]),
-                    ("recipient", tx["recipient"]),
-                    ("amount", tx["amount"]),
-                ]
-            )
-            for tx in block["transactions"]
-        ]
         for transaction in block["transactions"]:
             participants.add(transaction["sender"])
             participants.add(transaction["recipient"])
-    open_txs = [
-        OrderedDict(
-            [
-                ("sender", tx["sender"]),
-                ("recipient", tx["recipient"]),
-                ("amount", tx["amount"]),
-            ]
-        )
-        for tx in open_txs
-    ]
     for transaction in open_txs:
         participants.add(transaction["sender"])
         participants.add(transaction["recipient"])
@@ -82,10 +108,19 @@ def load_data():
 
 def save_data():
     """ Saves blockchain and open transactions date to a file. """
-    with open(SAVE_FILE, mode="w") as f:
-        f.write(json.dumps(blockchain))
-        f.write("\n")
-        f.write(json.dumps(open_txs))
+
+    # # saving data to a "text" file (begin)
+    # with open(SAVE_FILE, mode="w") as f:
+    #     f.write(json.dumps(blockchain))
+    #     f.write("\n")
+    #     f.write(json.dumps(open_txs))
+    # # saving data to a "text" file (end)
+
+    # saving data to a "data" file (begin)
+    with open(SAVE_FILE, mode="wb") as f:
+        data = {"blockchain": blockchain, "open_txs": open_txs}
+        f.write(pickle.dumps(data))
+    # saving data to a "data" file (end)
 
 
 def get_last_blockchain_val():
@@ -264,9 +299,9 @@ def validate_blockchain(blockchain):
                 end="",
             )
             if block["prev_block_hash"] == prev_block_hash:
-                print("Match!")
+                print(f"{GRN}Match!{NRM}")
             else:
-                print("MIS-MATCH!")
+                print(f"{RED}MIS-MATCH{NRM}!")
                 is_valid = False
             print(f"[debug]: Verifying proof of block[{i}] ({block})")
             print(
@@ -301,9 +336,9 @@ def validate_blockchain(blockchain):
             )
             print(f"[debug]: guess_str: ({guess_str})")
             if proof_succeeded:
-                print("[debug]:   Proof Succeeded!")
+                print(f"[debug]:   Proof {GRN}Succeeded{NRM}!")
             else:
-                print("[debug]:   Proof FAILED")
+                print(f"[debug]:   Proof {RED}FAILED{NRM}!")
     return is_valid
 
     # print(
@@ -355,9 +390,9 @@ while more_input:
     if usr_choice == "A":
         recipient, amount = get_tx()
         if add_tx(recipient, amount=amount):
-            print("Transaction succeded!")
+            print(f"{GRN}Transaction succeded{NRM}!")
         else:
-            print("Transaction failed!")
+            print(f"{RED}Transaction failed{NRM}!")
         print(f"[debug]: All open transactions:\n{open_txs}")
     elif usr_choice == "B":
         for participant in participants:
