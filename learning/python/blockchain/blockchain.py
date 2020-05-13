@@ -159,7 +159,7 @@ def save_data():
     else:
         print(f"[debug]: successfully to saved data to file: {SAVE_FILE}")
     finally:
-        print(f"[debug]: here's the data that couldn't be saved")
+        print(f"[debug]: here's the data that was saved")
         print(f"[debug]: {blockchain}")
         print(f"[debug]: {open_txs}")
     # saving data to a "data" file (end)
