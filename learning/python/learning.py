@@ -12,10 +12,54 @@ from math import *
 
 variable = "value"
 
-### functionaarguments (begin) ###
+
+# ### --- classes (begin) --- ###
+class Car:
+    no_of_wheels = 4
+
+    def __init__(self, max_speed=100):  # Constructor
+        self.max_speed = max_speed
+        self.warnings = []
+        self.__mileage = 0  # private attribute
+
+    def __repr__(self):  # General Output (wrapper)
+        print('Printing...')
+        return (
+            f'Max Speed: {self.max_speed}, ' +
+            f'Number of Warnings: {len(self.warnings)}')
+
+    def increase_mileage(self, miles):
+        if miles > 0:
+            self.__mileage += miles
+
+    def get_mileage(self):
+        return self.__mileage
+
+    def drive(self):
+        print(f'Driving - max speed: {self.max_speed}')
+
+
+car1 = Car()
+car2 = Car(200)
+car1.warnings.append('low oil')
+print(car1.__dict__)
+# {'max_speed': 100, 'warnings': ['low oil'], mileage: 0}
+print(car2.__dict__)
+# {'max_speed': 200, 'warnings': [], mileage: 0}
+print(car1)
+# Printing...
+# Max Speed: 100, Number of Warnings: 1
+car2.increase_mileage(1000)
+print(car2.get_mileage())
+# 1000
+# ### --- classes (end) --- ###
+
+
+# ### --- function arguments (begin) --- ###
 def unlimited_args(*args, **kwargs):
-    print(f'args: {args}')
-    print(f'kwargs: {kwargs}')
+    print(f"args: {args}")
+    print(f"kwargs: {kwargs}")
+
 
 # unpack list (of args) -> into a tuple
 unlimited_args(arg1, arg2, arg3)                     # (arg1, arg2, arg3)
@@ -23,7 +67,7 @@ unlimited_args(*[arg3, arg5, arg6])                  # (arg4, arg5, arg6)
 # unpack dict (of args) -> into a dict
 unlimited_args(a='aye', b='bee', c='sea')            # {'a':'aye', 'b':'bee', 'c':'sea'}
 unlimited_args(**{'a':'aye', 'b':'bee', 'c':'sea'})  # {'a':'aye', 'b':'bee', 'c':'sea'}
-### functionaarguments (end) ###
+# ### --- functionaarguments (end) --- ###
 
 def function():
     global variable
@@ -36,7 +80,7 @@ print(variable)
 import boto3
 
 
-# boto3 stuff (BEGIN)
+# ### --- boto3 stuff (BEGIN) --- ###
 def do_some_boto_stuff():
     ec2_client = boto3.client("ec2")
     ec2_resource = boto3.resource("ec2")
@@ -63,9 +107,9 @@ def do_some_boto_stuff():
         )
         instance_resource.modify_attribute(DisableApiTermination=False, DryRun=True)
         instance_resource.terminate(DryRun=True)
-# boto3 stuff (END)
+# ### --- boto3 stuff (END) --- ###
 
-# argparse stuff (BEGIN)
+# ### --- argparse stuff (BEGIN) --- ###
 import argparse
 
 parser = argparse.ArgumentParser(prog="spam")
@@ -87,10 +131,10 @@ parser.add_argument(
 #   metavar=None)
 parser.parse_args(["--version"])
 # program: spam - version: 1.2.3
-# argparse stuff (END)
+# ### --- argparse stuff (END) --- ###
 
 
-# function stuff (begin)
+# ### --- function stuff (begin) --- ###
 def add(a, b):
     return a + b
 
@@ -112,10 +156,10 @@ def str_to_dict(string):
     except ValueError:
         raise argparse.ArgumentTypeError("%s does not match KEY=VALUE format." % string)
     return dict(k=v)
-# function stuff (end)
+# ### --- function stuff (end) --- ###
 
 
-### misc stuff (begin) ###
+# ### --- misc stuff (begin) --- ###
 my_int = 7
 my_float = 1.23
 my_bool = True
@@ -133,10 +177,10 @@ print(
         **locals()
     )
 )
-### misc stuff (end) ###
+# ### --- misc stuff (end) --- ###
 
 
-### strings and string formatting (begin) ###
+# ### --- strings and string formatting (begin) --- ###
 # from __future__ import print_function  # needed for Python2.x
 my_string = "String"
 # 3rd_letter = "Monty"[2]
@@ -156,10 +200,9 @@ print(f"Let's not go to {str1}. 'Tis a silly {str2}.")       # Python 3.x
 flt1 = 234.125269
 print("Here is flt1: centered '{:^10.2f}'".format(flt1))
 print(f"Here is flt1: left justified & filled '{flt1:-<10.2f}'")
-### strings and string formatting (end) ###
+# ### --- strings and string formatting (end) --- ###
 
 exit("all done")  # EXIT - STOP TESTING!!!
-
 
 
 # from string import Template
