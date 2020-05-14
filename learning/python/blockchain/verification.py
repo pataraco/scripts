@@ -4,7 +4,6 @@ import pickle
 import sys
 
 import hash_utils
-from block import Block
 
 # initialize/define globals
 # constants
