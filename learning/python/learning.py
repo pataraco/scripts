@@ -22,7 +22,8 @@ class Car:
         self.warnings = []
         self.__mileage = 0  # private attribute
 
-    def __repr__(self):  # General Output (wrapper)
+    def __repr__(self):  # General Output (representation)
+        """ Used for 'print' if '__str__' not defined. (must return a string)"""
         print('Printing...')
         return (
             f'Max Speed: {self.max_speed}, ' +
@@ -52,6 +53,54 @@ print(car1)
 car2.increase_mileage(1000)
 print(car2.get_mileage())
 # 1000
+
+
+# Instance / Class / Static: Methods & Attributes
+# Class: Instance - Methods & Attributes
+class BaseMathInstance:
+    base = 5
+    def add(cls, a):
+        print(cls.base + a)
+
+base_math = BaseMathInstance()
+base_math.add(5)  # 10
+
+# Class: Class  - Methods & Attributes
+class BaseMathClass:
+    base = 6
+    @classmethod
+    def add(cls, a):
+        print(cls.base + a)
+
+BaseMathClass.add(5)  # 11
+
+# Class: Static - Methods & Attributes
+class BaseMathStatic:
+    base = 7
+    @staticmethod
+    def add(a):
+        print(BaseMathStatic.base + a)
+
+BaseMathStatic.add(5)  # 12
+
+
+# Attributes / Properties / getters & setters & deleters
+class BaseMath:
+    def __init__(self):
+        self.val = 0
+
+    @property  # getter
+    def val(self):
+        return self.__val
+
+    @val.setter
+    def val(self, x):
+        self.__val = x
+
+x = BaseMath()
+x = 5
+x = x + 8
+print(x)  # 13
 # ### --- classes (end) --- ###
 
 
