@@ -18,9 +18,6 @@ NRM = "\x1b[m"  # normal
 RED = "\x1b[1;31m"  # red, bold
 YLW = "\x1b[1;33m"  # red, bold
 
-# global variables
-verifier = Verification()
-
 
 class Node:
     def __init__(self):
@@ -65,23 +62,23 @@ class Node:
                     print(f"{GRN}Transaction succeded{NRM}!")
                 else:
                     print(f"{RED}Transaction failed{NRM}!")
-                print(f"[debug]: All open transactions:\n{self.blockchain.open_txs}")
+                print(
+                    f"[debug]: All open transactions:\n",
+                    f"{self.blockchain.get_open_txs()}",
+                )
             elif usr_choice == "B":
-                for participant in sorted(self.blockchain.participants):
+                for participant in sorted(self.blockchain.get_participants()):
                     print(
                         f"   Balance - Owner: {YLW}{participant:>15}{NRM}",
                         f"[{self.blockchain.get_balance(participant):10.2f}]",
                     )
             elif usr_choice == "C":
-                if len(self.blockchain.chain) > 1:
-                    self.blockchain.chain[1] = BOGUS_BLOCK
-                else:
-                    print("Not enough blocks to corrupt the blockchain")
+                self.blockchain.corrupt_chain()
             elif usr_choice == "M":
                 self.blockchain.mine_block()
             elif usr_choice == "O":
-                if verifier.validate_txs(
-                    self.blockchain.open_txs, self.blockchain.get_balance
+                if Verification.validate_txs(
+                    self.blockchain.get_open_txs(), self.blockchain.get_balance
                 ):
                     print("All open transactions are valid")
                 else:
@@ -89,14 +86,14 @@ class Node:
             elif usr_choice == "P":
                 self.print_out_blockchain()
             elif usr_choice == "S":
-                print(self.blockchain.participants)
+                print(self.blockchain.get_participants())
             elif usr_choice == "V":
-                verifier.validate_blockchain(self.blockchain.chain)
+                Verification.validate_blockchain(self.blockchain.get_chain())
             elif usr_choice == "Q":
                 more_input = False
             else:
                 print(f"Not a valid choice: '{usr_choice}'")
-            # if not verifier.validate_blockchain(blockchain.chain):
+            # if not Verification.validate_blockchain(blockchain.get_chain()):
             #     print(f"Not a valid blockchain! Normally would exit here...")
             #     print(f"Not a valid blockchain! Exiting...")
             #     break
@@ -108,10 +105,10 @@ class Node:
     def print_out_blockchain(self):
         """ Prints out the blockchain. """
         print("The entire blockchain:")
-        print(self.blockchain.chain)
+        print(self.blockchain.get_chain())
         print("Printing out the blocks...")
         i = 0
-        for block in self.blockchain.chain:
+        for block in self.blockchain.get_chain():
             print(f"  Block[{i}]: {block}")
             i += 1
         else:
