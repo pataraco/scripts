@@ -4,9 +4,9 @@ import pickle
 import sys
 
 from block import Block
-from hash_utils import hash_block
+from utility.hash_utils import hash_block
 from transaction import Transaction
-from verification import Verification
+from utility.verification import Verification
 
 # initialize/define globals
 # global constants
@@ -42,7 +42,7 @@ class Blockchain:
         self.__chain = []
         # unprocessed transactions
         self.__open_txs = []
-        self.__participants = {MINING_OWNER, hosting_node_id}
+        self.__participants = {MINING_OWNER}
         self.load_data()
         self.hosting_node = hosting_node_id
 
@@ -249,6 +249,8 @@ class Blockchain:
             <recipient> The recipient of the coins.
             <amount> The amount of coins transferred (default: 1.0).
         """
+        if self.hosting_node is None:
+            return False
         tx = Transaction(sender, recipient, amount)
         if Verification.valid_tx(tx, self.get_balance):
             self.__open_txs.append(tx)
@@ -260,6 +262,8 @@ class Blockchain:
 
     def mine_block(self):
         """ Adds a block of current transactions to the blockchain. """
+        if self.hosting_node is None:
+            return False
         # reward the miner
         reward_tx = Transaction(MINING_OWNER, self.hosting_node, MINING_REWARD)
         # make a copy in order to preserve open_txs
@@ -273,3 +277,4 @@ class Blockchain:
         self.__chain.append(block)
         self.__open_txs = []
         self.save_data()
+        return True

@@ -2,7 +2,8 @@ from uuid import uuid4
 from block import Block
 from blockchain import Blockchain
 from transaction import Transaction
-from verification import Verification
+from wallet import Wallet
+from utility.verification import Verification
 from os import environ
 
 # global constants
@@ -21,8 +22,11 @@ YLW = "\x1b[1;33m"  # red, bold
 
 class Node:
     def __init__(self):
+        self.wallet = Wallet()
+        self.wallet.create_keys()
         # self.id = str(uuid4())
-        self.id = environ["USER"]
+        # self.id = environ["USER"]  # for dev only
+        self.id = self.wallet.public_key
         self.blockchain = Blockchain(self.id)
 
     def get_tx(self):
@@ -50,16 +54,18 @@ class Node:
             print("  b: Show balances")
             print("  c: Corrupt the blockchain")
             print("  m: Mine the blockchain")
-            print("  o: Validate all open transactions")
             print("  p: Print the blockchain blocks")
             print("  s: Show the participants")
-            print("  v: Validate the blockchain")
+            print("  vb: Validate the blockchain")
+            print("  vo: Validate [all] open transactions")
+            print("  wc: Create Wallet")
+            print("  wl: Load Wallet")
             print("  q: Quit")
             usr_choice = self.get_user_choice()
             if usr_choice == "A":
                 recipient, amount = self.get_tx()
                 if self.blockchain.add_tx(recipient, self.id, amount=amount):
-                    print(f"{GRN}Transaction succeded{NRM}!")
+                    print(f"{GRN}Transaction succeeded{NRM}!")
                 else:
                     print(f"{RED}Transaction failed{NRM}!")
                 print(
@@ -75,20 +81,30 @@ class Node:
             elif usr_choice == "C":
                 self.blockchain.corrupt_chain()
             elif usr_choice == "M":
-                self.blockchain.mine_block()
-            elif usr_choice == "O":
+                if self.blockchain.mine_block():
+                    print(f"{GRN}Mining succeeded{NRM}!")
+                else:
+                    print(f"{RED}Mining failed{NRM}! Do you have your wallet?")
+            elif usr_choice == "P":
+                self.print_out_blockchain()
+            elif usr_choice == "S":
+                print(self.blockchain.get_participants())
+            elif usr_choice == "VO":
                 if Verification.validate_txs(
                     self.blockchain.get_open_txs(), self.blockchain.get_balance
                 ):
                     print("All open transactions are valid")
                 else:
                     print("Some transactions are NOT valid")
-            elif usr_choice == "P":
-                self.print_out_blockchain()
-            elif usr_choice == "S":
-                print(self.blockchain.get_participants())
-            elif usr_choice == "V":
+            elif usr_choice == "VB":
                 Verification.validate_blockchain(self.blockchain.get_chain())
+            elif usr_choice == "WC":
+                self.wallet.create_keys()
+                self.id = self.wallet.public_key
+                self.blockchain.hosting_node = self.id
+                print(f"[debug]: public ID created: {self.id}")
+            elif usr_choice == "WL":
+                pass
             elif usr_choice == "Q":
                 more_input = False
             else:
@@ -115,5 +131,6 @@ class Node:
             print("-" * 20)
 
 
-node = Node()
-node.listen_for_input()
+if __name__ == "__main__":
+    node = Node()
+    node.listen_for_input()

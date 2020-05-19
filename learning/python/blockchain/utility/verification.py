@@ -1,4 +1,4 @@
-from hash_utils import hash_block, hash_string
+from utility.hash_utils import hash_block, hash_string
 
 # global constants
 
