@@ -483,3 +483,13 @@ print(no_2_del)
 # |set  |  Y |   Y   |  N  |   Y  |
 # |tuple|  Y |   Y   |  Y  |   Y  |
 # |dict |  Y |   Y   |  Y  |   Y  |
+
+# generating private/public keys
+
+from Crypto.PublicKey import RSA
+import Crypto.Random
+import binascii
+private_key = RSA.generate(1024, Crypto.Random.new().read)
+public_key = private_key.publickey()
+private_key_string = private_key.exportKey().decode('ascii')
+private_key_hex = binascii.hexlify(private_key.exportKey(format='DER')).decode('ascii')
