@@ -1,9 +1,15 @@
 from Crypto.PublicKey import RSA
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.Hash import SHA256
 import Crypto.Random
 import binascii
+import json
+import sys
 
 
 class Wallet:
+    __SAVE_FILE = "wallet.txt"
+
     def __init__(self):
         self.private_key = None
         self.public_key = None
@@ -13,8 +19,52 @@ class Wallet:
         self.private_key = private_key
         self.public_key = public_key
 
+    def save_keys(self):
+        if self.public_key is not None and self.private_key is not None:
+            try:
+                with open(self.__SAVE_FILE, mode="w") as f:
+                    _data = {
+                        "public_key": self.public_key,
+                        "private_key": self.private_key,
+                    }
+                    f.write(json.dumps(_data))
+            except IOError as e:
+                print(f"[debug]: IOError: {e}")
+                print(
+                    f"IOError: trying to save wallet data to file: {self.__SAVE_FILE}"
+                )
+            except Exception as e:
+                print(f"[debug]: Exception (Catch All): {e}")
+                print(f"[debug]: Error [{e.__class__.__name__}] ({e.__class__})")
+                sys.exit(f"exit: error: {e}: not able to save wallet data")
+            else:
+                print(
+                    f"[debug]: successfully saved wallet data to file: {self.__SAVE_FILE}"
+                )
+        else:
+            print(f"[debug]: not saving wallet data: None")
+
     def load_keys(self):
-        pass
+        try:
+            with open(self.__SAVE_FILE, mode="r") as f:
+                _data = json.loads(f.readline())  # dict: public & private keys
+                self.public_key = _data["public_key"]
+                self.private_key = _data["private_key"]
+        except (IOError, IndexError) as e:
+            print(f"[debug]: IOError|IndexError: {e}")
+            print(
+                f"IOError|IndexError: trying to load wallet data",
+                f"by reading file: {self.__SAVE_FILE}",
+            )
+        except Exception as e:
+            print(f"[debug]: Exception (Catch All): {e}")
+            print(f"[debug]: Error [{e.__class__.__name__}] ({e.__class__})")
+            sys.exit(f"exit: error: {e}: not able to load wallet data")
+        else:
+            print(
+                f"[debug]: successfully loaded wallet data",
+                f"from file: {self.__SAVE_FILE}",
+            )
 
     def generate_keys(self):
         private_key = RSA.generate(1024, Crypto.Random.new().read)
@@ -26,3 +76,13 @@ class Wallet:
             "ascii"
         )
         return (private_hex, public_hex)
+
+    def sign_tx(self, sender, recipient, amount):
+        private_unhex = binascii.unhexlify(self.private_key)
+        signer = PKCS1_v1_5.new(RSA.importKey(private_unhex))
+        hash_tx_payload = SHA256.new(
+            (str(sender) + str(recipient) + str(amount)).encode("utf8")
+        )
+        signature = signer.sign(hash_tx_payload)
+        sig_hex = binascii.hexlify(signature).decode("ascii")
+        return sig_hex

@@ -58,13 +58,15 @@ class Node:
             print("  s: Show the participants")
             print("  vb: Validate the blockchain")
             print("  vo: Validate [all] open transactions")
-            print("  wc: Create Wallet")
-            print("  wl: Load Wallet")
+            print("  cw: Create Wallet")
+            print("  lw: Load Wallet")
+            print("  sw: Save Wallet")
             print("  q: Quit")
             usr_choice = self.get_user_choice()
             if usr_choice == "A":
                 recipient, amount = self.get_tx()
-                if self.blockchain.add_tx(recipient, self.id, amount=amount):
+                signature = self.wallet.sign_tx(self.id, recipient, amount)
+                if self.blockchain.add_tx(self.id, recipient, signature, amount=amount):
                     print(f"{GRN}Transaction succeeded{NRM}!")
                 else:
                     print(f"{RED}Transaction failed{NRM}!")
@@ -98,13 +100,18 @@ class Node:
                     print("Some transactions are NOT valid")
             elif usr_choice == "VB":
                 Verification.validate_blockchain(self.blockchain.get_chain())
-            elif usr_choice == "WC":
+            elif usr_choice == "CW":
                 self.wallet.create_keys()
                 self.id = self.wallet.public_key
                 self.blockchain.hosting_node = self.id
                 print(f"[debug]: public ID created: {self.id}")
-            elif usr_choice == "WL":
-                pass
+            elif usr_choice == "LW":
+                self.wallet.load_keys()
+                self.id = self.wallet.public_key
+                self.blockchain.hosting_node = self.id
+                print(f"[debug]: public ID loaded: {self.id}")
+            elif usr_choice == "SW":
+                self.wallet.save_keys()
             elif usr_choice == "Q":
                 more_input = False
             else:
