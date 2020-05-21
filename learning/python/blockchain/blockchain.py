@@ -48,6 +48,10 @@ class Blockchain:
         self.load_data()
         self.hosting_node = hosting_node_id
 
+    @property
+    def chain(self):
+        return self.__chain[:]
+
     def corrupt_chain(self):
         if len(self.__chain) > 1:
             self.__chain[1] = BOGUS_BLOCK
