@@ -7,6 +7,7 @@ from block import Block
 from utility.hash_utils import hash_block
 from transaction import Transaction
 from utility.verification import Verification
+from wallet import Wallet
 
 # initialize/define globals
 # global constants
@@ -20,7 +21,7 @@ GENESIS_BLOCK = Block(0, "", POW_DIGITS, [], 0)
 OWNER = "PAR"
 
 # for corrupting the chain
-BOGUS_TX = Transaction("Someone", str(uuid4()), 100.0)
+BOGUS_TX = Transaction("Someone", str(uuid4()), None, 100.0)
 BOGUS_BLOCK = Block(0, "", POW_DIGITS, [BOGUS_TX], 0)
 
 # ASCII escape sequences
@@ -71,7 +72,9 @@ class Blockchain:
                 blockchain_dicts = json.loads(f.readline())  # list of dicts
                 for block_dict in blockchain_dicts:
                     transactions = [
-                        Transaction(t["sender"], t["recipient"], t["amount"])
+                        Transaction(
+                            t["sender"], t["recipient"], t["signature"], t["amount"]
+                        )
                         for t in block_dict["transactions"]
                     ]
                     block = Block(
@@ -86,7 +89,9 @@ class Blockchain:
                 print(f"[debug]: {self.__chain}")
                 open_txs_dicts = json.loads(f.readline())  # list of dicts
                 self.__open_txs = [
-                    Transaction(t["sender"], t["recipient"], t["amount"])
+                    Transaction(
+                        t["sender"], t["recipient"], t["signature"], t["amount"]
+                    )
                     for t in open_txs_dicts
                 ]
                 print("[debug]: loaded the open transactions:")
@@ -256,7 +261,10 @@ class Blockchain:
         """
         if self.hosting_node is None:
             return False
-        tx = Transaction(sender, recipient, amount)
+        tx = Transaction(sender, recipient, signature, amount)
+        # this verification moved to verification.py
+        # if not Wallet.verify_tx(tx):
+        #     return False
         if Verification.valid_tx(tx, self.get_balance):
             self.__open_txs.append(tx)
             self.__participants.add(sender)
@@ -270,9 +278,13 @@ class Blockchain:
         if self.hosting_node is None:
             return False
         # reward the miner
-        reward_tx = Transaction(MINING_OWNER, self.hosting_node, MINING_REWARD)
+        reward_tx = Transaction(MINING_OWNER, self.hosting_node, None, MINING_REWARD)
         # make a copy in order to preserve open_txs
         new_txs = self.__open_txs[:]
+        # verify the new transactions before adding the reward transaction
+        for tx in new_txs:
+            if not Wallet.verify_tx(tx):
+                return False
         new_txs.append(reward_tx)
         # add the current transactions
         last_block = self.__chain[-1]

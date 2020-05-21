@@ -8,6 +8,7 @@ import sys
 
 
 class Wallet:
+    __MINING_OWNER = "MINING"
     __SAVE_FILE = "wallet.txt"
 
     def __init__(self):
@@ -78,11 +79,33 @@ class Wallet:
         return (private_hex, public_hex)
 
     def sign_tx(self, sender, recipient, amount):
-        private_unhex = binascii.unhexlify(self.private_key)
-        signer = PKCS1_v1_5.new(RSA.importKey(private_unhex))
+        private_key = RSA.importKey(binascii.unhexlify(self.private_key))
+        signer = PKCS1_v1_5.new(private_key)
         hash_tx_payload = SHA256.new(
             (str(sender) + str(recipient) + str(amount)).encode("utf8")
         )
         signature = signer.sign(hash_tx_payload)
         sig_hex = binascii.hexlify(signature).decode("ascii")
         return sig_hex
+
+    @classmethod
+    def verify_tx(cls, transaction):
+        """Verfify the signature of a transaction.
+        Arguments:
+            <transaction> The transaction that should be verified.
+        """
+        # this opens up a vulnerability
+        # if transaction.sender == cls.__MINING_OWNER:
+        #     return True
+        public_key = RSA.importKey(binascii.unhexlify(transaction.sender))
+        verifier = PKCS1_v1_5.new(public_key)
+        hash_tx_payload = SHA256.new(
+            (
+                str(transaction.sender)
+                + str(transaction.recipient)
+                + str(transaction.amount)
+            ).encode("utf8")
+        )
+        return verifier.verify(
+            hash_tx_payload, binascii.unhexlify(transaction.signature)
+        )

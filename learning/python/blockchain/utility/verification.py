@@ -1,4 +1,5 @@
 from utility.hash_utils import hash_block, hash_string
+from wallet import Wallet
 
 # global constants
 
@@ -30,16 +31,6 @@ class Verification:
         guess_hash = hash_string(guess_str_encoded)
         print(f"[debug]: guess_hash ({guess_hash})", end="\r")
         return guess_hash[0 : cls.POW_DIGITS] == cls.POW_PATTERN
-
-    @staticmethod
-    def valid_tx(transaction, get_balance):
-        """ Verify a transaction by checking if the sender has sufficient funds.
-        Arguments:
-            <transaction> The transaction that should be verified.
-            <get_balance> The function used to the the sender's balance.
-        """
-        sender_bal = get_balance(transaction.sender)
-        return sender_bal >= transaction.amount
 
     @classmethod
     def validate_blockchain(cls, blockchain):
@@ -94,7 +85,24 @@ class Verification:
                     print(f"[debug]:   Proof {RED}FAILED{NRM}!")
         return is_valid
 
+    @staticmethod
+    def valid_tx(transaction, get_balance, check_funds=True):
+        """ Verify a transaction by checking if the sender has sufficient funds.
+        Arguments:
+            <transaction> The transaction that should be verified.
+            <get_balance> The function used to the the sender's balance.
+        """
+        if check_funds:
+            sender_bal = get_balance(transaction.sender)
+            return sender_bal >= transaction.amount and Wallet.verify_tx(transaction)
+        else:
+            return Wallet.verify_tx(transaction)
+
     @classmethod
     def validate_txs(cls, transactions, get_balance):
-        """ Verifies all transactions given. """
+        """ Verifies all transactions given.
+        Arguments:
+            <transactions> The transactions that should be verified.
+            <get_balance> The function used to the the sender's balance.
+        """
         return all([cls.valid_tx(t, get_balance) for t in transactions])

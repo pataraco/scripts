@@ -8,7 +8,7 @@ from os import environ
 
 # global constants
 POW_DIGITS = 3  # number of digits for Proof of Work (starting at 0)
-BOGUS_TX = Transaction("Someone", str(uuid4()), 100.0)
+BOGUS_TX = Transaction("Someone", str(uuid4()), None, 100.0)
 BOGUS_BLOCK = Block(0, "", POW_DIGITS, [BOGUS_TX], 0)
 
 # ASCII escape sequences
