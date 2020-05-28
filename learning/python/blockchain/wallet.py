@@ -19,6 +19,7 @@ class Wallet:
         private_key, public_key = self.generate_keys()
         self.private_key = private_key
         self.public_key = public_key
+        return True
 
     def save_keys(self):
         if self.public_key is not None and self.private_key is not None:
@@ -34,16 +35,20 @@ class Wallet:
                 print(
                     f"IOError: trying to save wallet data to file: {self.__SAVE_FILE}"
                 )
+                return False
             except Exception as e:
                 print(f"[debug]: Exception (Catch All): {e}")
                 print(f"[debug]: Error [{e.__class__.__name__}] ({e.__class__})")
                 sys.exit(f"exit: error: {e}: not able to save wallet data")
+                return False
             else:
                 print(
                     f"[debug]: successfully saved wallet data to file: {self.__SAVE_FILE}"
                 )
+                return True
         else:
             print(f"[debug]: not saving wallet data: None")
+            return False
 
     def load_keys(self):
         try:
@@ -57,15 +62,18 @@ class Wallet:
                 f"IOError|IndexError: trying to load wallet data",
                 f"by reading file: {self.__SAVE_FILE}",
             )
+            return False
         except Exception as e:
             print(f"[debug]: Exception (Catch All): {e}")
             print(f"[debug]: Error [{e.__class__.__name__}] ({e.__class__})")
             sys.exit(f"exit: error: {e}: not able to load wallet data")
+            return False
         else:
             print(
                 f"[debug]: successfully loaded wallet data",
                 f"from file: {self.__SAVE_FILE}",
             )
+            return True
 
     def generate_keys(self):
         private_key = RSA.generate(1024, Crypto.Random.new().read)

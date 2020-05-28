@@ -218,6 +218,8 @@ class Blockchain:
 
     def get_balance(self, participant):
         """ Gets and returns a participants balance. """
+        if participant is None:
+            return None
         deductions = [
             t.amount
             for block in self.__chain
@@ -280,7 +282,7 @@ class Blockchain:
     def mine_block(self):
         """ Adds a block of current transactions to the blockchain. """
         if self.hosting_node is None:
-            return False
+            return None
         # reward the miner
         reward_tx = Transaction(MINING_OWNER, self.hosting_node, None, MINING_REWARD)
         # make a copy in order to preserve open_txs
@@ -288,7 +290,7 @@ class Blockchain:
         # verify the new transactions before adding the reward transaction
         for tx in new_txs:
             if not Wallet.verify_tx(tx):
-                return False
+                return None
         new_txs.append(reward_tx)
         # add the current transactions
         last_block = self.__chain[-1]
@@ -299,4 +301,4 @@ class Blockchain:
         self.__participants.add(self.hosting_node)
         self.__open_txs = []
         self.save_data()
-        return True
+        return block
