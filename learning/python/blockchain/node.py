@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from blockchain import Blockchain
 from block import Block
@@ -12,7 +12,7 @@ CORS(app)
 
 @app.route("/", methods=["GET"])
 def get_ui():
-    return "this is working!"
+    return send_from_directory("ui", "node.html")
 
 
 @app.route("/balance", methods=["GET"])
@@ -123,6 +123,29 @@ def add_transaction():
         return jsonify(response), 500  # Internal Server Error
 
 
+@app.route("/transactions", methods=["GET"])
+def get_transactions():
+    open_txs = blockchain.get_open_txs()
+    transactions_dict = [t.__dict__ for t in open_txs]
+    return jsonify(transactions_dict), 200  # OK
+    # if open_txs:
+    #     transactions_dict = [t.__dict__ for t in open_txs]
+    #     response = {
+    #         "message": "Open transactions retrievel succeeded",
+    #         "open_transactions": transactions_dict,
+    #         "wallet_set_up": wallet.public_key is not None,
+    #     }
+    #     return jsonify(response), 200  # OK
+    # else:
+    #     transactions_dict = [t.__dict__ for t in open_txs]
+    #     response = {
+    #         "message": "No open transactions",
+    #         "open_transactions": transactions_dict,
+    #         "wallet_set_up": wallet.public_key is not None,
+    #     }
+    #     return jsonify(response), 200  # OK
+
+
 @app.route("/create-wallet", methods=["POST"])
 def create_keys():
     if wallet.create_keys():
@@ -179,6 +202,50 @@ def save_keys():
             "wallet_set_up": wallet.public_key is not None,
         }
         return jsonify(response), 500  # Internal Server Error
+
+
+@app.route("/node", methods=["POST"])
+def add_node():
+    values = request.get_json()
+    if not values:
+        response = {
+            "message": "No data found",
+        }
+        return jsonify(response), 400  # Bad request
+    if "node" not in values:
+        response = {
+            "message": "No node data found",
+        }
+        return jsonify(response), 400  # Bad request
+    node = values.get("node")
+    blockchain.add_peer_node(node)
+    response = {
+        "message": "Node add succeeded",
+        "all_nodes": blockchain.get_peer_nodes(),
+    }
+    return jsonify(response), 201  # Created
+
+
+@app.route("/node/<node_url>", methods=["DELETE"])
+def remove_node(node_url):
+    if node_url == "" or node_url is None:
+        response = {
+            "message": "No node found",
+        }
+        return jsonify(response), 400  # Bad request
+    blockchain.remove_peer_node(node_url)
+    response = {
+        "message": "Node remove succeeded",
+        "all_nodes": blockchain.get_peer_nodes(),
+    }
+    return jsonify(response), 202  # Accepted
+
+
+@app.route("/nodes", methods=["GET"])
+def get_peer_nodes():
+    all_nodes = blockchain.get_peer_nodes()
+    response = {"message": "Get peer nodes succeeded", "all_nodes": all_nodes}
+    return jsonify(response), 200  # OK
 
 
 if __name__ == "__main__":

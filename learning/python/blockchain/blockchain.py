@@ -9,6 +9,8 @@ from transaction import Transaction
 from utility.verification import Verification
 from wallet import Wallet
 
+# TODO: convert save data back to binary
+
 # initialize/define globals
 # global constants
 MINING_OWNER = "MINING"
@@ -45,26 +47,39 @@ class Blockchain:
         # unprocessed transactions
         self.__open_txs = []
         self.__participants = {MINING_OWNER}
-        self.load_data()
         self.hosting_node = hosting_node_id
+        self.__peer_nodes = set()
+        self.load_data()
 
+    # add chain attribute getter method
     @property
     def chain(self):
+        """ Defines a getter for the chain attribute. """
         return self.__chain[:]
 
+    # add chain attribute setter method
+    @chain.setter
+    def chain(self, val):
+        """ Defines a setter for the chain attribute. """
+        self.__chain = val
+
     def corrupt_chain(self):
+        """ Corrupts the blockchain for testing purposes. """
         if len(self.__chain) > 1:
             self.__chain[1] = BOGUS_BLOCK
         else:
             print("Not enough blocks to corrupt the blockchain")
 
     def get_chain(self):
+        """ Returns the blockchain. """
         return self.__chain[:]
 
     def get_open_txs(self):
+        """ Returns a copy of the open transactions list. """
         return self.__open_txs[:]
 
     def get_participants(self):
+        """ Returns this list of participants. """
         return self.__participants.copy()
 
     def load_data(self):
@@ -100,6 +115,10 @@ class Blockchain:
                 ]
                 print("[debug]: loaded the open transactions:")
                 print(f"[debug]: {self.__open_txs}")
+                peer_nodes = json.loads(f.readline())
+                self.__peer_nodes = set(peer_nodes)
+                print("[debug]: loaded the peer nodes")
+                print(f"[debug]: {self.__peer_nodes}")
         except (IOError, IndexError) as e:
             print(f"[debug]: IOError|IndexError: {e}")
             print(
@@ -171,6 +190,8 @@ class Blockchain:
                 f.write("\n")
                 open_txs_dicts = [t.__dict__ for t in self.__open_txs]  # list of dicts
                 f.write(json.dumps(open_txs_dicts))
+                f.write("\n")
+                f.write(json.dumps(list(self.__peer_nodes)))
         except IOError as e:
             print(f"[debug]: IOError: {e}")
             print(f"IOError: trying to save blockchain to file: {self.__SAVE_FILE}")
@@ -201,6 +222,7 @@ class Blockchain:
         # # saving data to a "data" file (end)
 
     def proof_of_work(self, transactions, last_block_hash):
+        """ Generates the proof of work to validate the block. """
         proof = 0
         while not Verification.valid_proof(transactions, last_block_hash, proof):
             proof += 1
@@ -302,3 +324,25 @@ class Blockchain:
         self.__open_txs = []
         self.save_data()
         return block
+
+    def add_peer_node(self, node):
+        """ Adds a new node to the peer node set.
+
+        Arguments:
+            <node> The node URL/Endpoint that should be added.
+        """
+        self.__peer_nodes.add(node)
+        self.save_data()
+
+    def remove_peer_node(self, node):
+        """ Removes a node from the peer node set.
+
+        Arguments:
+            <node> The node URL/Endpoint that should be removed.
+        """
+        self.__peer_nodes.discard(node)
+        self.save_data()
+
+    def get_peer_nodes(self):
+        """ Returns a list of all peer nodes. """
+        return list(self.__peer_nodes)
