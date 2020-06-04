@@ -7,6 +7,7 @@
 #   - add search for EIPs
 #   - add search for ECS/ECR/EKS
 #   - add search for EFS
+#   - add search for CodePipelines
 
 # get the AWS account number
 aws_acct=$(aws sts get-caller-identity | jq -r .Account)
