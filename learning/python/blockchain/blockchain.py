@@ -39,15 +39,16 @@ YLW = "\x1b[1;33m"  # red, bold
 
 class Blockchain:
     # __SAVE_FILE = "blockchain.data"  # for binary format
-    __SAVE_FILE = "blockchain.txt"  # for text format
+    __SAVE_FILE = "blockchain-{}.txt"  # for text format (with port)
 
-    def __init__(self, hosting_node_id):
+    def __init__(self, hosting_node_id, hosting_node_port):
         # initialize empty blockchain list
         self.__chain = []
         # unprocessed transactions
         self.__open_txs = []
         self.__participants = {MINING_OWNER}
         self.hosting_node = hosting_node_id
+        self.hosting_port = hosting_node_port
         self.__peer_nodes = set()
         self.load_data()
 
@@ -87,7 +88,7 @@ class Blockchain:
 
         # loading data from a "text" file (begin)
         try:
-            with open(self.__SAVE_FILE, mode="r") as f:
+            with open(self.__SAVE_FILE.format(self.hosting_port), mode="r") as f:
                 blockchain_dicts = json.loads(f.readline())  # list of dicts
                 for block_dict in blockchain_dicts:
                     transactions = [
@@ -123,7 +124,7 @@ class Blockchain:
             print(f"[debug]: IOError|IndexError: {e}")
             print(
                 f"IOError|IndexError: trying to load blockchain data",
-                f"by reading file: {self.__SAVE_FILE}",
+                f"by reading file: {self.__SAVE_FILE.format(self.hosting_port)}",
             )
             print(f"[debug]: Using genesis block: {GENESIS_BLOCK}")
             self.__chain = [GENESIS_BLOCK]
@@ -135,7 +136,7 @@ class Blockchain:
 
         # # loading data from a "data" file (begin)
         # try:
-        #     with open(self.__SAVE_FILE, mode="rb") as f:
+        #     with open(self.__SAVE_FILE.format(self.hosting_port), mode="rb") as f:
         #         file_content = f.read()
         #         if file_content:
         #             data = pickle.loads(file_content)
@@ -149,7 +150,7 @@ class Blockchain:
         #                 print(f"[debug]: {self.__open_txs}")
         # except (IOError, IndexError) as e:
         #     print(f"[debug]: IOError/IndexError: {e}")
-        #     print(f"IOError/IndexError: trying to read file: {self.__SAVE_FILE}")
+        #     print(f"IOError/IndexError: trying to read file: {self.__SAVE_FILE.format(self.hosting_port)}")
         #     print(f"[debug]: Using genesis block: {GENESIS_BLOCK}")
         # except Exception as e:
         #     print(f"[debug]: Exception (Catch All): {e}")
@@ -171,7 +172,7 @@ class Blockchain:
 
         # saving data to a "text" file (begin)
         try:
-            with open(self.__SAVE_FILE, mode="w") as f:
+            with open(self.__SAVE_FILE.format(self.hosting_port), mode="w") as f:
                 # convert transactions to dicts and then blocks to dicts
                 blockchain_dicts = [
                     b.__dict__
@@ -194,7 +195,9 @@ class Blockchain:
                 f.write(json.dumps(list(self.__peer_nodes)))
         except IOError as e:
             print(f"[debug]: IOError: {e}")
-            print(f"IOError: trying to save blockchain to file: {self.__SAVE_FILE}")
+            print(
+                f"IOError: trying to save blockchain to file: {self.__SAVE_FILE.format(self.hosting_port)}"
+            )
         except Exception as e:
             print(f"[debug]: Exception (Catch All): {e}")
             print(f"[debug]: Error [{e.__class__.__name__}] ({e.__class__})")
@@ -203,18 +206,18 @@ class Blockchain:
 
         # # saving data to a "data" file (begin)
         # try:
-        #     with open(self.__SAVE_FILE, mode="wb") as f:
+        #     with open(self.__SAVE_FILE.format(self.hosting_port), mode="wb") as f:
         #         data = {"blockchain": self.__chain, "open_txs": self.__open_txs}
         #         f.write(pickle.dumps(data))
         # except IOError as e:
         #     print(f"[debug]: IOError: {e}")
-        #     print(f"IOError: trying to save blockchain data to file: {self.__SAVE_FILE}")
+        #     print(f"IOError: trying to save blockchain data to file: {self.__SAVE_FILE.format(self.hosting_port)}")
         # except Exception as e:
         #     print(f"[debug]: Exception (Catch All): {e}")
         #     print(f"[debug]: Error [{e.__class__.__name__}] ({e.__class__})")
         #     sys.exit(f"exit: error: {e}: not able to save blockchain data")
         # else:
-        #     print(f"[debug]: successfully saved blockchain data to file: {self.__SAVE_FILE}")
+        #     print(f"[debug]: successfully saved blockchain data to file: {self.__SAVE_FILE.format(self.hosting_port)}")
         # finally:
         #     print(f"[debug]: here's the data that was saved")
         #     print(f"[debug]: {self.__chain}")

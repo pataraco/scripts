@@ -9,11 +9,12 @@ import sys
 
 class Wallet:
     __MINING_OWNER = "MINING"
-    __SAVE_FILE = "wallet.txt"
+    __SAVE_FILE = "wallet-{}.txt"  # format with port
 
-    def __init__(self):
+    def __init__(self, hosting_node_port):
         self.private_key = None
         self.public_key = None
+        self.hosting_port = hosting_node_port
 
     def create_keys(self):
         private_key, public_key = self.generate_keys()
@@ -24,7 +25,7 @@ class Wallet:
     def save_keys(self):
         if self.public_key is not None and self.private_key is not None:
             try:
-                with open(self.__SAVE_FILE, mode="w") as f:
+                with open(self.__SAVE_FILE.format(self.hosting_port), mode="w") as f:
                     _data = {
                         "public_key": self.public_key,
                         "private_key": self.private_key,
@@ -33,7 +34,7 @@ class Wallet:
             except IOError as e:
                 print(f"[debug]: IOError: {e}")
                 print(
-                    f"IOError: trying to save wallet data to file: {self.__SAVE_FILE}"
+                    f"IOError: trying to save wallet data to file: {self.__SAVE_FILE.format(self.hosting_port)}"
                 )
                 return False
             except Exception as e:
@@ -43,7 +44,7 @@ class Wallet:
                 return False
             else:
                 print(
-                    f"[debug]: successfully saved wallet data to file: {self.__SAVE_FILE}"
+                    f"[debug]: successfully saved wallet data to file: {self.__SAVE_FILE.format(self.hosting_port)}"
                 )
                 return True
         else:
@@ -52,7 +53,7 @@ class Wallet:
 
     def load_keys(self):
         try:
-            with open(self.__SAVE_FILE, mode="r") as f:
+            with open(self.__SAVE_FILE.format(self.hosting_port), mode="r") as f:
                 _data = json.loads(f.readline())  # dict: public & private keys
                 self.public_key = _data["public_key"]
                 self.private_key = _data["private_key"]
@@ -60,7 +61,7 @@ class Wallet:
             print(f"[debug]: IOError|IndexError: {e}")
             print(
                 f"IOError|IndexError: trying to load wallet data",
-                f"by reading file: {self.__SAVE_FILE}",
+                f"by reading file: {self.__SAVE_FILE.format(self.hosting_port)}",
             )
             return False
         except Exception as e:
@@ -71,7 +72,7 @@ class Wallet:
         else:
             print(
                 f"[debug]: successfully loaded wallet data",
-                f"from file: {self.__SAVE_FILE}",
+                f"from file: {self.__SAVE_FILE.format(self.hosting_port)}",
             )
             return True
 

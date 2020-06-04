@@ -66,6 +66,22 @@
         <div v-if="error" class="alert alert-danger" role="alert">
           {{ error }}
         </div>
+        <div v-if="success" class="alert alert-success" role="alert">
+          {{ success }}
+        </div>
+        <div class="row">
+          <div class="col">
+            <ul class="nav nav-pills">
+              <li class="nav-item">
+                <a class="nav-link active" href="/">Wallet &amp; Node</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/network">Network</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <hr />
         <div class="row">
           <div class="col">
             <div v-if="!walletLoading">
@@ -90,9 +106,6 @@
           <div class="col text-right">
             <h2>Funds: {{ funds.toFixed(2) }}</h2>
           </div>
-        </div>
-        <div v-if="success" class="alert alert-success" role="alert">
-          {{ success }}
         </div>
         <hr />
         <div v-if="!wallet" class="row">
@@ -371,9 +384,9 @@
                 amount: this.outgoingTx.amount,
               })
               .then(function (response) {
+                console.log(response);
                 vm.error = null;
                 vm.success = response.data.message;
-                console.log(response);
                 vm.funds = response.data.funds;
               })
               .catch(function (error) {
@@ -388,9 +401,9 @@
             axios
               .post("/mine")
               .then(function (response) {
+                console.log(response);
                 vm.error = null;
                 vm.success = response.data.message;
-                console.log(response);
                 vm.funds = response.data.funds;
               })
               .catch(function (error) {
