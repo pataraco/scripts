@@ -89,8 +89,8 @@ class Verification:
     def valid_tx(transaction, get_balance, check_funds=True):
         """ Verify a transaction by checking if the sender has sufficient funds.
         Arguments:
-            <transaction> The transaction that should be verified.
-            <get_balance> The function used to the the sender's balance.
+            :transaction: The transaction that should be verified.
+            :get_balance: The function used to the the sender's balance.
         """
         if check_funds:
             sender_bal = get_balance(transaction.sender)
@@ -102,7 +102,7 @@ class Verification:
     def validate_txs(cls, transactions, get_balance):
         """ Verifies all transactions given.
         Arguments:
-            <transactions> The transactions that should be verified.
-            <get_balance> The function used to the the sender's balance.
+            :transactions: The transactions that should be verified.
+            :get_balance: The function used to the the sender's balance.
         """
         return all([cls.valid_tx(t, get_balance) for t in transactions])

@@ -80,6 +80,63 @@ def mine():
         return jsonify(response), 500  # Internal Server Error
 
 
+@app.route("/broadcast-transaction", methods=["POST"])
+def broadcast_transactions():
+    values = request.get_json()
+    if not values:
+        response = {
+            "message": "Bad request: Missing data",
+        }
+        return jsonify(response), 400  # Bad request
+    required_keys = ["s", "r", "sig", "a"]
+    if not all(k in values for k in required_keys):
+        response = {
+            "message": "Bad request: Missing key(s)",
+        }
+        return jsonify(response), 400  # Bad request
+    if blockchain.add_tx(
+        values["s"], values["r"], values["sig"], values["a"], is_broadcast=True
+    ):
+        response = {
+            "message": "Transaction broadcast succeeded",
+            "transaction": {
+                "sender": values["s"],
+                "recipient": values["r"],
+                "signature": values["sig"],
+                "amount": values["a"],
+            },
+        }
+        return jsonify(response), 201  # Created
+    else:
+        response = {
+            "message": "Transaction broadcast failed",
+        }
+        return jsonify(response), 500  # Internal Server Error
+
+
+@app.route("/transactions", methods=["GET"])
+def get_transactions():
+    open_txs = blockchain.get_open_txs()
+    transactions_dict = [t.__dict__ for t in open_txs]
+    return jsonify(transactions_dict), 200  # OK
+    # if open_txs:
+    #     transactions_dict = [t.__dict__ for t in open_txs]
+    #     response = {
+    #         "message": "Open transactions retrievel succeeded",
+    #         "open_transactions": transactions_dict,
+    #         "wallet_set_up": wallet.public_key is not None,
+    #     }
+    #     return jsonify(response), 200  # OK
+    # else:
+    #     transactions_dict = [t.__dict__ for t in open_txs]
+    #     response = {
+    #         "message": "No open transactions",
+    #         "open_transactions": transactions_dict,
+    #         "wallet_set_up": wallet.public_key is not None,
+    #     }
+    #     return jsonify(response), 200  # OK
+
+
 @app.route("/transaction", methods=["POST"])
 def add_transaction():
     sender = blockchain.hosting_node
@@ -125,29 +182,6 @@ def add_transaction():
             "wallet_set_up": wallet.public_key is not None,
         }
         return jsonify(response), 500  # Internal Server Error
-
-
-@app.route("/transactions", methods=["GET"])
-def get_transactions():
-    open_txs = blockchain.get_open_txs()
-    transactions_dict = [t.__dict__ for t in open_txs]
-    return jsonify(transactions_dict), 200  # OK
-    # if open_txs:
-    #     transactions_dict = [t.__dict__ for t in open_txs]
-    #     response = {
-    #         "message": "Open transactions retrievel succeeded",
-    #         "open_transactions": transactions_dict,
-    #         "wallet_set_up": wallet.public_key is not None,
-    #     }
-    #     return jsonify(response), 200  # OK
-    # else:
-    #     transactions_dict = [t.__dict__ for t in open_txs]
-    #     response = {
-    #         "message": "No open transactions",
-    #         "open_transactions": transactions_dict,
-    #         "wallet_set_up": wallet.public_key is not None,
-    #     }
-    #     return jsonify(response), 200  # OK
 
 
 @app.route("/create-wallet", methods=["POST"])

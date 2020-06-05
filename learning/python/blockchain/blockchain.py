@@ -1,6 +1,7 @@
 from uuid import uuid4
 import json
 import pickle
+import requests
 import sys
 
 from block import Block
@@ -279,16 +280,16 @@ class Blockchain:
             return None
         return self.__chain[-1]
 
-    def add_tx(self, sender, recipient, signature, amount=1.0):
+    def add_tx(self, sender, recipient, signature, amount=1.0, is_broadcast=False):
         """ Adds a transaction to the blockchain
             and current transaction amount to the blockchain list.
 
             Parameters:
 
-            <sender> The sender of the coins.
-            <recipient> The recipient of the coins.
-            <signature> The signature of the transaction.
-            <amount> The amount of coins transferred (default: 1.0).
+            :sender: The sender of the coins.
+            :recipient: The recipient of the coins.
+            :signature: The signature of the transaction.
+            :amount: The amount of coins transferred (default: 1.0).
         """
         if self.hosting_node is None:
             return False
@@ -301,7 +302,39 @@ class Blockchain:
             self.__participants.add(sender)
             self.__participants.add(recipient)
             self.save_data()
-            return True
+            if not is_broadcast:
+                for node in self.__peer_nodes:
+                    url = f"http://{node}/broadcast-transaction"
+                    try:
+                        print(f"[debug]: trying to broadcast transactions to: {url}")
+                        response = requests.post(
+                            url,
+                            json={
+                                "s": sender,
+                                "r": recipient,
+                                "sig": signature,
+                                "a": amount,
+                            },
+                        )
+                        print(f"[debug]: response status code: {response.status_code}")
+                        if response.status_code == 400 or response.status_code == 500:
+                            print(
+                                "[debug]: broadcast transaction failed (needs resolving)"
+                            )
+                            return False
+                    except requests.exceptions.ConnectionError as e:
+                        print(f"[debug]: ConnectionError: {e}")
+                        print(f"ConnectionError: trying to connect to node: {node}")
+                        continue
+                    except Exception as e:
+                        print(f"[debug]: Exception (Catch All): {e}")
+                        print(
+                            f"[debug]: Error [{e.__class__.__name__}] ({e.__class__})"
+                        )
+                        sys.exit(
+                            f"exit: error: {e}: not able to connect to node: {node}"
+                        )
+                        return True
         return False
 
     def mine_block(self):
@@ -332,7 +365,7 @@ class Blockchain:
         """ Adds a new node to the peer node set.
 
         Arguments:
-            <node> The node URL/Endpoint that should be added.
+            :node: The node URL/Endpoint that should be added.
         """
         self.__peer_nodes.add(node)
         self.save_data()
@@ -341,7 +374,7 @@ class Blockchain:
         """ Removes a node from the peer node set.
 
         Arguments:
-            <node> The node URL/Endpoint that should be removed.
+            :node: The node URL/Endpoint that should be removed.
         """
         self.__peer_nodes.discard(node)
         self.save_data()
