@@ -1,8 +1,9 @@
 from uuid import uuid4
 import json
-import pickle
 import requests
 import sys
+
+# import pickle  # used for data file types
 
 from block import Block
 from utility.hash_utils import hash_block
@@ -175,19 +176,21 @@ class Blockchain:
         try:
             with open(self.__SAVE_FILE.format(self.hosting_port), mode="w") as f:
                 # convert transactions to dicts and then blocks to dicts
-                blockchain_dicts = [
-                    b.__dict__
-                    for b in [
-                        Block(
-                            bce.index,
-                            bce.prev_block_hash,
-                            bce.proof,
-                            [t.__dict__ for t in bce.transactions],
-                            bce.timestamp,
-                        )
-                        for bce in self.__chain
-                    ]
-                ]
+                blockchain_dicts = [b.to_dict() for b in self.__chain]
+                # old way before 'to_dict' method
+                # blockchain_dicts = [
+                #     b.__dict__
+                #     for b in [
+                #         Block(
+                #             bce.index,
+                #             bce.prev_block_hash,
+                #             bce.proof,
+                #             [t.__dict__ for t in bce.transactions],
+                #             bce.timestamp,
+                #         )
+                #         for bce in self.__chain
+                #     ]
+                # ]
                 f.write(json.dumps(blockchain_dicts))
                 f.write("\n")
                 open_txs_dicts = [t.__dict__ for t in self.__open_txs]  # list of dicts
