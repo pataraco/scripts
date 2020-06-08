@@ -17,3 +17,14 @@ class Block:
             + f" time stamp: {self.timestamp}\n"
             + f"\ttransactions: {self.transactions}"
         )
+
+    def to_dict(self):
+        transactions_dicts = [t.__dict__ for t in self.transactions]
+        block_dict = dict(
+            index=self.index,
+            prev_block_hash=self.prev_block_hash,
+            proof=self.proof,
+            timestamp=self.timestamp,
+            transactions=transactions_dicts,
+        )
+        return block_dict
