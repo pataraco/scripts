@@ -52,7 +52,7 @@ def add_color(string):
 
 
 # parse command line arguments
-parser_description = 'get the expiration dates of AWS load balancers'
+parser_description = 'get certificate expiration dates used for AWS load balancers, CloudFront distributions and API gateway custom domains'
 parser = argparse.ArgumentParser(description=parser_description)
 parser.add_argument(
     '-r', '--region',
@@ -69,12 +69,12 @@ args = parser.parse_args()
 # set up some global vars
 region = args.region
 colorize = args.color
-# all_certs = {}  # indexed by their ARN and containing thier expiration dates
 all_certs = {}  # indexed by ARN & containing (short desc, exp date, and users)
-iam_cert_arns = {}  # indexed by ID equal to the ARN - to translate ID -> ARN
+iam_cert_arns = {}  # indexed by ID equal to the ARN - used to translate ID -> ARN
 
 
 # get/set boto clients
+apigateway = boto3.client('apigateway', region_name=region)
 cloudfront = boto3.client('cloudfront')
 elb = boto3.client('elb', region_name=region)
 elbv2 = boto3.client('elbv2', region_name=region)
@@ -151,11 +151,30 @@ all_certs[cert_arn] = {
     'users': []
 }
 
+
+# check all the API gateway custom domain
+resource = 'API GW'  # API Gareway (custom domain)
+paginator = apigateway.get_paginator('get_domain_names')
+for page in paginator.paginate():
+    for api_gw_custom_domain in page['items']:
+        # get name and listeners
+        domain_name = api_gw_custom_domain['domainName']
+        cert_arn = api_gw_custom_domain['certificateArn']
+        domain_type = api_gw_custom_domain['endpointConfiguration']['types'][0]
+        domain_status = api_gw_custom_domain['domainNameStatus']
+        # show progress
+        print(
+            f'getting/processing all API gateway custom domains:'
+            f' {domain_name}{D2E}', end='\r')
+        # add results to list
+        all_certs[cert_arn]['users'].append(
+            f'{domain_name} [{domain_type}|{domain_status}] ({resource})')
+
+
 # check all the classic load balancers
 resource = 'CLB'  # Classic Load Balancer
 paginator = elb.get_paginator('describe_load_balancers')
 for page in paginator.paginate():
-    # for load_balancer in elb.describe_load_balancers()['LoadBalancerDescriptions']:
     for load_balancer in page['LoadBalancerDescriptions']:
         # get name and listeners
         lb_name = load_balancer['LoadBalancerName']
