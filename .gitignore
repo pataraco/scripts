@@ -108,3 +108,6 @@ venv.bak/
 
 # compressed files
 *.zip
+
+# node stuff
+**/node_modules
