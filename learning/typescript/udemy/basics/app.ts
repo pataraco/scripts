@@ -18,7 +18,7 @@
 //   - never      - functions that never return a value
 
 // compilation tips/tricks
-//   - watch mode  ;  tsc app.ts --watch
+//   - watch mode  ;  tsc app.ts --watch | -w
 //   - tsc --init  ;  one-time, then 'tsc [--watch]'
 // tsconfig tips/tricks
 //   - include, exclude, files ; set for tsc to compile whatnot
@@ -26,6 +26,8 @@
 //   - rootDir, outDir         ; location of source and destination for tsc
 //   - "removeComments": true  ; tsc will remove comments to reduce size of code
 //   - "noEmitOnError": true   ; don't emit if errors found
+// general tips/tricks
+//   - use "let" not "var" for block {} scope
 
 console.log("Raco WAS here...");
 
